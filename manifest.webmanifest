@@ -1,0 +1,37 @@
+{
+  "id": "/",
+  "name": "Cantine du Quartier",
+  "short_name": "Cantine",
+  "description": "Commandez vos repas à la cantine, prêts à retirer à l'heure choisie.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8F5E8",
+  "theme_color": "#3A7650",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Voir la carte",
+      "url": "./#/menu"
+    },
+    {
+      "name": "Suivre ma commande",
+      "url": "./#/suivi"
+    }
+  ]
+}

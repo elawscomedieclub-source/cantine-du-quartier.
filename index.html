@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cantine du Quartier</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#3A7650">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#3A7650">
 <meta name="apple-mobile-web-app-title" content="Cantine">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -326,6 +326,20 @@ mark.todo{background:color-mix(in srgb,var(--accent) 28%,transparent);color:inhe
 .installbar .wrap{display:flex;gap:12px;align-items:center;justify-content:space-between;padding-top:10px;padding-bottom:10px;font-weight:600;font-size:.95rem}
 .installbar .ib{display:flex;gap:8px;align-items:center;flex:none}
 @media (max-width:520px){.installbar .wrap{flex-wrap:wrap}}
+.kitchen{min-height:100vh;background:#17261C;color:#fff;padding:0 0 30px}
+.khead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;background:#0F1B14;position:sticky;top:0;z-index:5}
+.khead .muted{color:rgba(255,255,255,.65)}.kright{display:flex;gap:12px;align-items:center}.kclock{font-family:var(--font-d);font-size:1.5rem;font-weight:700}
+.kgrid{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);padding:14px 18px;align-items:start}
+.kcol h2{font-size:1.3rem;margin:0}.kcol .kc{display:inline-grid;place-items:center;min-width:30px;height:30px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:.95rem;margin-left:6px}
+.kcol .kh{color:rgba(255,255,255,.6);margin:2px 0 10px;font-size:.9rem}.kempty{padding:26px;text-align:center;color:rgba(255,255,255,.45);border:2px dashed rgba(255,255,255,.18);border-radius:16px}
+.kc-card{background:#243A2D;border-radius:16px;padding:14px;margin-bottom:12px;border-left:8px solid var(--accent)}
+.k-prep .kc-card{border-left-color:#5AA9E6}.k-ready .kc-card{border-left-color:#5BC27A}.kc-card.late{outline:3px solid #E5533D}
+.kc-top{display:flex;justify-content:space-between;align-items:baseline}.kc-num{font-family:var(--font-d);font-size:1.5rem}.kc-time{font-size:1.6rem;font-weight:800;color:var(--accent)}
+.kc-name{color:rgba(255,255,255,.75);margin-bottom:6px}.kc-items{list-style:none;margin:6px 0;padding:0;font-size:1.25rem;line-height:1.35}.kc-items b{color:var(--accent)}
+.kc-note{margin:8px 0;padding:8px 10px;border-radius:10px;background:#F4E9C8;color:#1D2A21;font-weight:700}.kc-pay{margin:8px 0;font-weight:700;color:#F4C97A}
+.kc-btn{width:100%;margin-top:10px;min-height:56px;font-size:1.1rem}
+@media (max-width:900px){.kgrid{grid-template-columns:1fr}}
+@media print{.skipprint{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* ===== design v2 : retouches ===== */

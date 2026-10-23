@@ -31,10 +31,10 @@
 
     /* ---------- commande ---------- */
     // items : [{ id: '<uuid>' | 'formule', qty }]  (aucun prix : le serveur les relit)
-    async placeOrder({ name, phone, date, time, items, method, note, useCredit, reference }) {
+    async placeOrder({ name, phone, date, time, items, method, note, useCredit, reference, email }) {
       return unwrap(await sb.rpc('place_order', {
         p_name: name, p_phone: phone, p_pickup_date: date, p_pickup_time: time,
-        p_items: items, p_method: method, p_note: note || '', p_use_credit: !!useCredit, p_reference: reference || '',
+        p_items: items, p_method: method, p_note: note || '', p_use_credit: !!useCredit, p_reference: reference || '', p_email: email || '',
       }));
     },
     // Paiement en ligne : renvoie l'adresse de la page CinetPay (à ouvrir : location.href = payment_url)
@@ -123,6 +123,8 @@
     saveIdentityAndStyle: async (patch) => unwrap(await sb.from('settings').update(patch).eq('id', 1)),   // admin : name, tagline, style
     saveContact: async (s) => unwrap(await sb.rpc('update_contact', { p_address: s.address, p_phone: s.phone, p_email: s.email, p_hours: s.hours, p_prep: s.prep_min, p_slot: s.slot_min })),
     togglePayment: async (id, enabled) => unwrap(await sb.from('payment_methods').update({ enabled }).eq('id', id)),
+    slotUsage: async (from, to) => unwrap(await sb.rpc('slot_usage', { p_from: from, p_to: to })),
+    setSlotCapacity: async (n) => unwrap(await sb.rpc('set_slot_capacity', { p_cap: n })),
     topDishes: async (sinceISO) => unwrap(await sb.rpc('top_dishes', { p_from: sinceISO })),
     activity: async () => unwrap(await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(120)),
     updateMyProfile: async (name, photoUrl) => unwrap(await sb.rpc('update_my_profile', { p_name: name, p_photo: photoUrl || null })),

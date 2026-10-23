@@ -1,9 +1,8 @@
 // Service worker : permet l'installation de l'application et garde une copie du site pour les coupures de réseau.
 // Stratégie : le réseau d'abord (vous avez toujours la dernière version), la copie enregistrée en secours.
 // Les données (Supabase) et les bibliothèques externes ne sont jamais mises en cache ici.
-const VERSION = 'cq-v2';
-const SHELL = ['./', 'index.html', 'app.js', 'api.js', 'backend.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
-  'equipe/index.html', 'equipe/manifest.webmanifest', 'equipe/icon-192.png', 'equipe/icon-512.png'];
+const VERSION = 'cq-v3';
+const SHELL = ['./', 'index.html', 'app.js', 'api.js', 'backend.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -25,6 +24,6 @@ self.addEventListener('fetch', (e) => {
     fetch(req).then((res) => {
       if (res && res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
       return res;
-    }).catch(() => caches.match(req).then((hit) => hit || caches.match(url.pathname.includes('/equipe/') ? 'equipe/index.html' : 'index.html')))
+    }).catch(() => caches.match(req).then((hit) => hit || caches.match('index.html')))
   );
 });

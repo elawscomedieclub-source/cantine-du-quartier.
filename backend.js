@@ -56,7 +56,7 @@
       q(sb.from('news').select('*').order('created_at', { ascending: false })),
     ]);
     N.settings = { name: st.name, tagline: st.tagline, address: st.address, phone: st.phone, email: st.email || '', style: st.style,
-      hours: st.hours || {}, legal: st.legal || {}, prepMin: st.prep_min, slot: st.slot_min,
+      hours: st.hours || {}, legal: st.legal || {}, prepMin: st.prep_min, slot: st.slot_min, slotCap: st.slot_capacity || 0, notifyEmail: !!st.notify_email,
       payments: pm.filter((p) => p.id !== 'credit').map((p) => ({ id: p.id, label: p.label, kind: p.kind, hint: p.hint || '', details: p.details || {}, on: p.enabled })) };
     N.dishes = di.map(mapDish);
     N.menuDuJour = { items: md.dish_ids || [], formulePrice: md.formule_price };
@@ -110,10 +110,13 @@
     methodLabel: t.method === 'credit' ? 'Crédit client' : ((S.settings.payments.find((p) => p.id === t.method) || {}).label || t.method),
   });
   async function loadTrack(num, ph) {
+    const before = trackCache[num] && trackCache[num].ok ? trackCache[num].o.status + '|' + trackCache[num].o.payStatus : '';
     try { const t = await API.trackOrder(num, ph); trackCache[num] = t ? { ok: true, o: mapTrack(t, ph) } : { ok: false }; }
     catch (e) { trackCache[num] = { ok: false, err: fr(e) }; }
-    const r = route();
-    if (r.p[0] === 'suivi' && r.p[1] === num && !isTyping() && !modalOpen()) render();
+    const r = route(), after = trackCache[num].ok ? trackCache[num].o.status + '|' + trackCache[num].o.payStatus : '';
+    if (isTyping() || modalOpen()) return;
+    if (r.p[0] === 'suivi' && r.p[1] === num) render();
+    else if (r.p[0] !== 'admin' && before !== after) render();          // la barre « commande en cours » change d'état
   }
   const phoneFor = (num) => mineMap()[num] || (client() && client().phone);
   const lookupPage = pageTrack;
@@ -127,10 +130,37 @@
     if (!c.ok) return shell(`<section class="wrap pagehead"><h1>Commande introuvable</h1><p class="lead">${esc(c.err || 'Vérifiez le numéro et le téléphone.')} <a href="#/suivi">Réessayer</a></p></section>`);
     return shell(trackView(c.o));
   };
+  /* dernière commande passée sur cet appareil : alimente la barre « Ma commande en cours » */
+  const latestNum = () => Object.keys(mineMap()).sort((a, b) => (+b.replace(/\D/g, '')) - (+a.replace(/\D/g, '')))[0] || '';
+  currentOrderInfo = function () {
+    const num = latestNum(); if (!num) return null;
+    const c = trackCache[num]; if (!c || !c.ok) return null;
+    return { num, status: c.o.status, payStatus: c.o.payStatus, pickupTime: c.o.pickupTime };
+  };
+  const pollLatest = () => {
+    const num = latestNum(); if (!num) return;
+    const c = trackCache[num];
+    if (c && c.ok && (c.o.status === 'done' || c.o.status === 'cancelled')) return;
+    const ph = phoneFor(num); if (ph) loadTrack(num, ph);
+  };
+  setTimeout(pollLatest, 1500);
   setInterval(() => {                                       // le suivi se met à jour tout seul
     const r = route();
     if (r.p[0] === 'suivi' && r.p[1]) { const ph = phoneFor(r.p[1]); if (ph) loadTrack(r.p[1], ph); }
+    else if (r.p[0] !== 'admin') pollLatest();
   }, 15000);
+
+  /* occupation des créneaux de retrait : lue au moment de choisir l'heure */
+  const checkoutBase = pageCheckout; let slotAt = 0, slotBusy = false;
+  pageCheckout = function () {
+    if (!slotBusy && Date.now() - slotAt > 20000 && (S.settings.slotCap || 0) > 0) {
+      slotBusy = true;
+      const from = dkey(Date.now()), to = dkey(Date.now() + 6 * DAY);
+      API.slotUsage(from, to).then((rows) => { slotUse = {}; rows.forEach((x) => { slotUse[x.pickup_date + ' ' + String(x.pickup_time).slice(0, 5)] = +x.n; }); })
+        .catch(() => {}).finally(() => { slotAt = Date.now(); slotBusy = false; if (route().p[0] === 'commande' && !isTyping() && !modalOpen()) { captureDraft(); render(); } });
+    }
+    return checkoutBase();
+  };
 
   /* ---------- temps réel (équipe) ---------- */
   let live = false; const known = {};
@@ -143,7 +173,7 @@
         await refresh();
         const fresh = S.orders.filter((o) => o.status === 'new' && (known[o.id] === undefined || known[o.id] === 'awaiting'));
         remember();
-        if (fresh.length) { toast(fresh.length > 1 ? fresh.length + ' nouvelles commandes' : 'Nouvelle commande reçue', 'ok'); beep(); }
+        if (fresh.length) { toast(fresh.length > 1 ? fresh.length + ' nouvelles commandes' : 'Nouvelle commande reçue', 'ok'); beep(); notifyNew(fresh.length); }
         if (!modalOpen() && !isTyping()) render();
       } catch (e) { /* la prochaine mise à jour réessaiera */ }
     });
@@ -196,6 +226,7 @@
 
   Object.assign(CHG, {
     async dishActive(el) { if (!need(can('menus'))) { el.checked = !el.checked; return; } run(() => API.saveDish({ id: el.dataset.id, active: el.checked })); },
+    async notifyEmail(el) { if (!need(isAdmin())) { el.checked = !el.checked; return; } run(() => API.saveIdentityAndStyle({ notify_email: el.checked })); },
     async payToggle(el) { if (!need(isAdmin())) { el.checked = !el.checked; return; } run(() => API.togglePayment(el.dataset.id, el.checked)); },
   });
 
@@ -209,14 +240,17 @@
       if (phone.length !== 8) return fail('Le téléphone doit comporter 8 chiffres.');
       const op = pickupOptions().find((x) => x.key === fd.get('day')), time = fd.get('time');
       if (!op || !op.slots.includes(time)) return fail('Choisissez un créneau de retrait valide.');
+      if (slotFull(op.key, time)) return fail('Ce créneau est complet : choisissez une autre heure.');
       const pm = payById(fd.get('method')); if (!pm || !pm.on) return fail('Choisissez un moyen de paiement.');
+      const email = String(fd.get('email') || '').trim().toLowerCase();
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Adresse e-mail invalide.');
       if (!fd.get('cgv')) return fail('Cochez l\'acceptation des conditions de vente et de la politique de confidentialité.');
       if (pm.kind === 'manual' && (cartTotal() - creditApplied()) > 0 && String(fd.get('ref') || '').replace(/\s/g, '').length < 6) return fail('Saisissez la référence de la transaction reçue par SMS après votre paiement.');
       setErr('coErr', '');
       const btn = $('#payBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Envoi en cours…'; }
       try {
         const res = await API.placeOrder({ name, phone, date: op.key, time: time + ':00', items: cart.items.map((i) => ({ id: i.id, qty: i.qty })),
-          method: pm.id, note: String(fd.get('note') || '').trim(), useCredit: !!fd.get('useCredit'), reference: String(fd.get('ref') || '') });
+          method: pm.id, note: String(fd.get('note') || '').trim(), useCredit: !!fd.get('useCredit'), reference: String(fd.get('ref') || ''), email });
         rememberOrder(res.num, phone); cart.items = []; saveCart(); ui.draft = {};
         if (res.status === 'awaiting') {
           openModal(`<div class="center" style="padding:10px"><div class="spin"></div><h2 style="margin-bottom:8px">Redirection vers le paiement</h2><p class="muted">Vous allez régler ${money(res.due)} sur la page sécurisée du prestataire.</p></div>`, { lock: true, nofocus: true, label: 'Redirection vers le paiement' });
@@ -325,7 +359,8 @@
         if (fd.get('o' + d)) { const a = fd.get('f' + d), b = fd.get('t' + d); if (!a || !b || toMin(a) >= toMin(b)) return toast('Vérifiez les horaires de ' + DAYNAMES[d] + ' : l\'ouverture doit précéder la fermeture.', 'bad'); h[d] = [a, b]; } else h[d] = null;
       }
       const s = S.settings;
-      run(() => API.saveContact({ address: s.address, phone: s.phone, email: s.email || null, hours: h, prep_min: Math.max(5, +fd.get('prep') || 20), slot_min: +fd.get('slot') || 15 }), { ok: 'Horaires enregistrés' });
+      const cap = Math.max(0, Math.min(200, Math.round(+fd.get('cap') || 0)));
+      run(async () => { await API.saveContact({ address: s.address, phone: s.phone, email: s.email || null, hours: h, prep_min: Math.max(5, +fd.get('prep') || 20), slot_min: +fd.get('slot') || 15 }); await API.setSlotCapacity(cap); }, { ok: 'Horaires enregistrés' });
     },
     async payAdd(f) {
       if (!need(isAdmin())) return; const l = String(new FormData(f).get('label') || '').trim(); if (!l) return;

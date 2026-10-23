@@ -29,7 +29,14 @@ let deferredInstall=null;
 const isStandalone=()=>{try{return !!(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true}catch(e){return false}};
 const isIOS=()=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)}catch(e){return false}};
 const PROD=!!window.CANTINE_PROD;
-const STAFF_APP=!!window.CANTINE_STAFF;   // application « équipe » installée depuis /equipe/ : icône et nom distincts de l'application des clients
+const STAFF_APP=!!window.CANTINE_STAFF;
+/* Deux sites séparés (clients et équipe) : chacun est une application installable à part, avec sa propre icône. */
+const STAFF_URL=(BACKEND&&!STAFF_APP&&window.CANTINE_CONFIG.staffUrl)||'';     // site clients : adresse du site équipe
+/* Capacité par créneau de retrait (0 = illimité) */
+let slotUse={};
+const slotCount=(d,t)=>BACKEND?(slotUse[d+' '+t]||0):S.orders.filter(o=>o.pickupDate===d&&o.pickupTime===t&&o.status!=='cancelled').length;
+const slotFull=(d,t)=>{const c=(S&&S.settings&&S.settings.slotCap)||0;return c>0&&slotCount(d,t)>=c};
+const CLIENT_URL=(BACKEND&&STAFF_APP&&window.CANTINE_CONFIG.clientUrl)||'';    // site équipe : adresse du site clients   // application « équipe » installée depuis /equipe/ : icône et nom distincts de l'application des clients
 const installReady=()=>PROD&&!isStandalone()&&(!!deferredInstall||isIOS());   // site publié : aucune donnée ni identifiant de démonstration, jamais de repli en mode démo
 /* Comptes clients (connexion par SMS) : désactivés si config.js contient clientAccounts: false. Les commandes en invité restent possibles. */
 const ACCOUNTS=!(BACKEND&&window.CANTINE_CONFIG.clientAccounts===false);
@@ -144,7 +151,7 @@ function seed(){
   {at:now-864e5,by:'Yao Agbeko',text:'A défini le menu du jour'}
  ];
  return {v:1,seq:1000+orders.length,
-  settings:{name:'Cantine du Quartier',tagline:'Cuisine togolaise faite maison, à emporter ou à déguster sur place.',address:'Boulevard du 13 Janvier, Lomé, Togo',phone:'+228 90 00 00 00',email:'contact@cantineduquartier.tg',style:'nature',hours,prepMin:20,slot:15,legal:{company:'',form:'',nif:'',rccm:'',director:'',host:'',contact:'',retention:''},
+  settings:{name:'Cantine du Quartier',tagline:'Cuisine togolaise faite maison, à emporter ou à déguster sur place.',address:'Boulevard du 13 Janvier, Lomé, Togo',phone:'+228 90 00 00 00',email:'contact@cantineduquartier.tg',style:'nature',hours,prepMin:20,slot:15,slotCap:0,notifyEmail:false,legal:{company:'',form:'',nif:'',rccm:'',director:'',host:'',contact:'',retention:''},
    payments:[
     {id:'mixx',label:'Mixx by Yas',kind:'momo',on:true,hint:'Paiement mobile, ex-T-Money'},
     {id:'flooz',label:'Flooz (Moov)',kind:'momo',on:true,hint:'Paiement mobile'},
@@ -262,6 +269,18 @@ const ICON={
  pin:'<path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9" r="2.5" fill="currentColor"/>',
  user:'<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
 };
+function currentOrderInfo(){            // démonstration : dernière commande passée sur cet appareil
+ const nums=mine();if(!nums.length)return null;
+ const num=nums.slice().sort((a,b)=>(+b.replace(/\D/g,''))-(+a.replace(/\D/g,'')))[0];
+ const o=S.orders.find(x=>x.num===num);
+ return o?{num:o.num,status:o.status,payStatus:o.payStatus,pickupTime:o.pickupTime}:null;
+}
+function orderBar(){
+ const i=currentOrderInfo();
+ if(!i||i.status==='done'||i.status==='cancelled'||route().p[0]==='suivi')return '';
+ const msg=i.status==='awaiting'?'Paiement en attente':i.status==='new'?(i.payStatus==='à vérifier'?'Reçue, paiement en cours de vérification':'Reçue'):i.status==='prep'?'En préparation':i.status==='ready'?'Prête : venez la récupérer':'En cours';
+ return `<a class="orderbar ${i.status}" href="#/suivi/${esc(i.num)}"><span><strong>Commande ${esc(i.num)}</strong> : ${msg}</span><span class="ob-t">Retrait ${hmc(i.pickupTime)}</span></a>`;
+}
 function installBanner(){
  if(!installReady())return '';
  if(Date.now()-(+ls.get('cantine-install-off')||0)<14*DAY)return '';
@@ -279,11 +298,11 @@ function shell(inner){
   ${ACCOUNTS?`<a class="btn ghost sm hide-m" href="#/compte">${cl?esc(cl.name.split(' ')[0]):'Mon compte'}</a>`:''}
   <button class="btn sm" data-a="cartOpen" aria-label="Ouvrir le panier">Panier${n?` <span class="count">${n}</span>`:''}</button>
  </div></header>
- <main id="main">${installBanner()}${inner}</main>
+ <main id="main">${orderBar()}${installBanner()}${inner}</main>
  <footer class="site"><div class="wrap">
   <div><h3>${esc(s.name)}</h3><p>${esc(s.tagline)}</p></div>
   <div><h3>Nous trouver</h3><p>${esc(s.address)}</p><p><a href="tel:${esc(s.phone.replace(/\s/g,''))}">${esc(s.phone)}</a></p></div>
-  <div><h3>Liens</h3><ul><li><a href="#/menu">La carte</a></li><li><a href="#/suivi">Suivre ma commande</a></li><li><a href="#/faq">Questions fréquentes</a></li><li><a href="#/mentions">Mentions légales</a></li><li><a href="#/confidentialite">Confidentialité</a></li><li><a href="#/cgv">Conditions de vente</a></li>${PROD&&!isStandalone()&&!STAFF_APP?'<li><button class="linkbtn" style="color:inherit" data-a="install">Installer l\'application</button></li>':''}<li><a href="#/admin">Espace équipe</a></li></ul></div>
+  <div><h3>Liens</h3><ul><li><a href="#/menu">La carte</a></li><li><a href="#/suivi">Suivre ma commande</a></li><li><a href="#/faq">Questions fréquentes</a></li><li><a href="#/mentions">Mentions légales</a></li><li><a href="#/confidentialite">Confidentialité</a></li><li><a href="#/cgv">Conditions de vente</a></li>${PROD&&!isStandalone()&&!STAFF_APP?'<li><button class="linkbtn" style="color:inherit" data-a="install">Installer l\'application</button></li>':''}<li><a href="${STAFF_URL||'#/admin'}">Espace équipe</a></li></ul></div>
  </div></footer>
  ${n&&r!=='commande'?`<button class="cartpill" data-a="cartOpen"><span>Panier, ${n} article${n>1?'s':''}</span><span>${money(cartTotal())}</span></button>`:''}
  <nav class="tabbar" aria-label="Navigation mobile">${tabs.map(([h,l,i])=>`<a href="#/${h}" ${r===h?'aria-current="page"':''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[i]}</svg>${l}</a>`).join('')}</nav>`;
@@ -407,11 +426,12 @@ function pageCheckout(){
   <div class="panel"><h2>Vos coordonnées</h2>
    <div class="row"><div class="field"><label for="f-name">Nom</label><input class="input" id="f-name" name="name" autocomplete="name" required value="${esc(dr.name!=null?dr.name:(cl?cl.name:''))}"></div>
    <div class="field"><label for="f-phone">Téléphone</label><input class="input" id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="90 00 00 00" required value="${esc(phone0)}"></div></div>
+   ${S.settings.notifyEmail?`<div class="field"><label for="f-email">E-mail (facultatif)</label><input class="input" id="f-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="vous@exemple.com" value="${esc(dr.email||'')}"><span class="hint">Pour être prévenu quand votre commande est reçue et prête. Utilisé uniquement pour cette commande.</span></div>`:''}
    ${cl||!ACCOUNTS?'':`<p class="hint">Vous avez un compte ? <a href="#/compte">Connectez-vous</a> pour pré-remplir vos informations et utiliser votre crédit.</p>`}
   </div>
   <div class="panel"><h2>Retrait</h2>
    <div class="row"><div class="field"><label for="f-day">Jour</label><select class="input" id="f-day" name="day" data-c="pickupDay">${opts.map(o=>`<option value="${o.key}" ${o.key===day.key?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>
-   <div class="field"><label for="f-time">Heure</label><select class="input" id="f-time" name="time">${day.slots.map(t=>`<option value="${t}" ${dr.time===t?'selected':''}>${hmc(t)}</option>`).join('')}</select></div></div>
+   <div class="field"><label for="f-time">Heure</label><select class="input" id="f-time" name="time">${day.slots.map(t=>{const full=slotFull(day.key,t);return `<option value="${t}" ${dr.time===t&&!full?'selected':''} ${full?'disabled':''}>${hmc(t)}${full?' (complet)':''}</option>`}).join('')}</select></div></div>
    <div class="field"><label for="f-note">Instructions pour la cuisine (facultatif)</label><textarea class="input" id="f-note" name="note" placeholder="Ex. sans piment">${esc(dr.note||'')}</textarea></div>
   </div>
   <div class="panel"><h2>Paiement</h2>
@@ -580,11 +600,12 @@ function pageLegal(kind){
   <h2>Responsable du traitement</h2><p>${company}, ${esc(s.address)}. Contact pour vos données : ${contact}.</p>
   <h2>Données collectées et pourquoi</h2><ul>
   <li><strong>Commande</strong> : nom, téléphone, heure de retrait, contenu de la commande, instructions. Pour préparer et vous remettre votre commande, et vous prévenir en cas de problème.</li>
+  ${S.settings.notifyEmail?'<li><strong>E-mail (facultatif)</strong> : adresse saisie à la commande, utilisée uniquement pour vous prévenir quand votre commande est reçue, prête ou annulée.</li>':''}
   ${ACCOUNTS?`<li><strong>Compte client (facultatif)</strong> : nom, téléphone, historique des commandes, crédit. Pour retrouver vos commandes et gérer votre crédit. La connexion se fait par code envoyé par SMS.</li>`:''}
   <li><strong>Paiement</strong> : le règlement en ligne est traité par CinetPay. La cantine ne reçoit ni votre numéro de carte ni votre code secret, seulement la confirmation du paiement.</li>
   <li><strong>Équipe</strong> : nom, identifiant, actions effectuées, pour la sécurité et le suivi du service.</li>
   <li><strong>Sécurité</strong> : votre adresse IP est utilisée brièvement pour limiter les abus (conservée environ 24 heures).</li></ul>
-  <h2>Qui reçoit vos données</h2><p>Uniquement les prestataires nécessaires au service : Supabase (hébergement de la base de données), CinetPay (paiement en ligne), ${ACCOUNTS?todo('fournisseur SMS')+' (envoi des codes de connexion), ':''}${host} (hébergement du site). Les polices d'écriture du site sont chargées depuis Google Fonts, ce qui transmet votre adresse IP à Google.</p>
+  <h2>Qui reçoit vos données</h2><p>Uniquement les prestataires nécessaires au service : Supabase (hébergement de la base de données), CinetPay (paiement en ligne), ${ACCOUNTS?todo('fournisseur SMS')+' (envoi des codes de connexion), ':''}${S.settings.notifyEmail?'Brevo (envoi des e-mails de suivi de commande), ':''}${host} (hébergement du site). Les polices d'écriture du site sont chargées depuis Google Fonts, ce qui transmet votre adresse IP à Google.</p>
   <h2>Transferts hors du Togo</h2><p>Ces prestataires peuvent être situés hors du Togo. Nous veillons à ce que le niveau de protection de vos données reste adéquat, comme l'exige la loi.</p>
   <h2>Durée de conservation</h2><p>Commandes : ${lg.retention?esc(lg.retention)+' an'+(+lg.retention>1?'s':''):todo('durée à fixer avec votre comptable')}. Compte client : jusqu'à votre demande de suppression. Les codes SMS ne sont pas conservés par la cantine.</p>
   <h2>Vos droits</h2><p>Vous pouvez demander l'accès à vos données, leur rectification, leur effacement ou vous opposer à leur traitement, en écrivant à ${contact} ou en appelant le ${esc(s.phone)}. Nous répondons dans un délai raisonnable. Pour un effacement, votre compte et vos commandes sont rendus anonymes (le crédit éventuel doit d'abord être utilisé ou remboursé). Vous pouvez aussi saisir l'Instance de protection des données à caractère personnel (IPDCP) du Togo.</p>
@@ -607,6 +628,7 @@ function pageLegal(kind){
 const ADM=[
  ['','Tableau de bord',()=>true],
  ['commandes','Commandes',()=>can('commandes')],
+ ['cuisine','Mode cuisine',()=>can('commandes')],
  ['plats','Plats et menu',()=>can('menus')],
  ['stocks','Stocks',()=>can('stocks')],
  ['credits','Crédits clients',()=>can('credits')],
@@ -622,7 +644,7 @@ function adminShell(page,title,inner,actions=''){
   <a class="brand" href="#/admin">${logo()}<span>${esc(S.settings.name)}</span></a>
   <nav aria-label="Administration">${ADM.filter(a=>a[2]()).map(([h,l])=>`<a href="#/admin${h?'/'+h:''}" ${page===h?'aria-current="page"':''}><span>${l}</span>${h==='commandes'&&newCount?`<span class="count">${newCount}</span>`:''}</a>`).join('')}</nav>
   <div class="me">${avatar(u,38)}<div style="flex:1;min-width:0"><strong>${esc(u.name)}</strong><small>${ROLES[u.role]}</small></div></div>
-  <div style="display:flex;gap:8px"><a class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" href="${STAFF_APP?'../':'#/'}">Voir le site</a>${PROD&&!isStandalone()?(STAFF_APP?'<button class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" data-a="install">Installer</button>':'<a class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" href="equipe/">Appli équipe</a>'):''}<button class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" data-a="slogout">Quitter</button></div>
+  <div style="display:flex;gap:8px"><a class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" href="${STAFF_APP?(CLIENT_URL||'#/'):'#/'}">Voir le site</a>${PROD&&!isStandalone()?(STAFF_APP?'<button class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" data-a="install">Installer</button>':(STAFF_URL?`<a class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" href="${esc(STAFF_URL)}">Appli équipe</a>`:'')):''}<button class="btn ghost sm" style="color:var(--board-ink);border-color:var(--board-line)" data-a="slogout">Quitter</button></div>
  </aside><main class="amain" id="main">${STAFF_APP?installBanner():''}<div class="ahead"><h1 style="font-size:clamp(1.6rem,3vw,2.2rem)">${esc(title)}</h1><div>${actions}</div></div>${inner}</main></div>`;
 }
 function pageAdminLogin(){
@@ -689,6 +711,7 @@ function pageOrders(){
  <div class="panel" style="margin-bottom:18px"><div class="sechead" style="margin-bottom:0"><div class="seg" role="group" aria-label="Statut">${['all',...Object.keys(STATUS).filter(s=>BACKEND||s!=='awaiting')].map(s=>`<button data-a="ofilter" data-v="${s}" aria-pressed="${oUi.f===s}">${s==='all'?'Toutes':STATUS[s]} (${cnt(s)})</button>`).join('')}</div>
  <div style="display:flex;gap:10px;flex-wrap:wrap"><select class="input" style="width:auto" aria-label="Période" data-c="orange"><option value="today" ${oUi.range==='today'?'selected':''}>Aujourd'hui</option><option value="week" ${oUi.range==='week'?'selected':''}>7 jours</option><option value="all" ${oUi.range==='all'?'selected':''}>Tout</option></select>
  <input class="input" style="width:220px" type="search" placeholder="Numéro, nom, téléphone" aria-label="Rechercher une commande" data-i="orderQ" value="${esc(oUi.q)}"></div></div></div>
+ <div style="margin-bottom:14px"><button class="btn ghost sm" data-a="exportCsv">Exporter en CSV (Excel)</button></div>
  <div id="orderlist">${ordersList()}</div>`);
 }
 function orderModal(o){
@@ -705,6 +728,7 @@ function orderModal(o){
  <h3 style="margin-top:20px">Historique</h3><div class="small">${o.history.slice().reverse().map(h=>`<div class="line" style="padding:3px 0"><span>${STATUS[h.s]}${h.by?`, ${esc(h.by)}`:''}</span><span class="muted">${hm(h.at)}</span></div>`).join('')}</div>
  <div class="dlg-f">${(o.payStatus==='à payer'||o.payStatus==='à vérifier')&&o.status!=='cancelled'?`<button class="btn ${o.payStatus==='à vérifier'?'accent':'ghost'}" data-a="markPaid" data-id="${o.id}">${o.payStatus==='à vérifier'?'Valider le paiement':'Marquer comme payée'}</button>`:''}${o.payStatus==='à vérifier'&&o.status!=='cancelled'?`<button class="btn danger" data-a="setStatus" data-id="${o.id}" data-v="cancelled">Paiement non reçu : annuler</button>`:''}
  ${o.payStatus==='à rembourser'?`<button class="btn ghost" data-a="refundCredit" data-id="${o.id}">Rembourser en crédit${cl?'':' (créer le compte)'}</button>`:''}
+ <button class="btn ghost" data-a="printTicket" data-id="${o.id}">Imprimer le ticket</button>
  <button class="btn" data-a="modalClose">Fermer</button></div>`,{label:'Commande '+o.num,cls:'wide'});
 }
 function addCredit(c,delta,motif,by){c.credit=Math.max(0,c.credit+delta);c.history.push({at:Date.now(),delta,motif,by:by||(staff()?staff().name:'Client')})}
@@ -839,7 +863,8 @@ function pageSettings(){
  const idn=ad?`<form class="panel" data-form="identity"><h2>Identité</h2><div class="field"><label for="i-n">Nom de la cantine</label><input class="input" id="i-n" name="name" required value="${esc(s.name)}"><span class="hint">Visible partout sur le site. Seul l'Administrateur peut le changer.</span></div><div class="field"><label for="i-t">Slogan</label><input class="input" id="i-t" name="tagline" value="${esc(s.tagline)}"></div><button class="btn" type="submit">Enregistrer</button></form>`:'';
  const contact=`<form class="panel" data-form="contact"><h2>Coordonnées</h2><div class="field"><label for="k-a">Adresse complète</label><input class="input" id="k-a" name="address" required value="${esc(s.address)}"></div><div class="row"><div class="field"><label for="k-p">Téléphone</label><input class="input" id="k-p" name="phone" required value="${esc(s.phone)}"></div><div class="field"><label for="k-e">E-mail</label><input class="input" id="k-e" name="email" type="email" value="${esc(s.email||'')}"></div></div><button class="btn" type="submit">Enregistrer</button></form>`;
  const hrs=`<form class="panel" data-form="hours"><h2>Horaires et retrait</h2>${[1,2,3,4,5,6,0].map(d=>{const t=s.hours[d];return `<div class="cl"><label class="check" style="min-width:140px"><input type="checkbox" name="o${d}" ${t?'checked':''}>${cap(DAYNAMES[d])}</label><input class="input" style="width:120px" type="time" name="f${d}" value="${t?t[0]:'11:30'}" aria-label="Ouverture ${DAYNAMES[d]}"><span>à</span><input class="input" style="width:120px" type="time" name="t${d}" value="${t?t[1]:'15:30'}" aria-label="Fermeture ${DAYNAMES[d]}"></div>`}).join('')}
- <div class="row" style="margin-top:14px"><div class="field"><label for="h-p">Délai minimal de préparation (min)</label><input class="input" id="h-p" name="prep" type="number" min="5" step="5" value="${s.prepMin}"></div><div class="field"><label for="h-s">Créneaux de retrait toutes les (min)</label><select class="input" id="h-s" name="slot">${[10,15,20,30].map(m=>`<option ${s.slot===m?'selected':''}>${m}</option>`).join('')}</select></div></div><button class="btn" type="submit">Enregistrer</button></form>`;
+ <div class="row" style="margin-top:14px"><div class="field"><label for="h-p">Délai minimal de préparation (min)</label><input class="input" id="h-p" name="prep" type="number" min="5" step="5" value="${s.prepMin}"></div><div class="field"><label for="h-s">Créneaux de retrait toutes les (min)</label><select class="input" id="h-s" name="slot">${[10,15,20,30].map(m=>`<option ${s.slot===m?'selected':''}>${m}</option>`).join('')}</select></div></div>
+ <div class="field" style="max-width:340px"><label for="h-c">Commandes maximum par créneau (0 = illimité)</label><input class="input" id="h-c" name="cap" type="number" min="0" max="200" value="${s.slotCap||0}"><span class="hint">Évite de surcharger la cuisine : un créneau complet n'est plus proposé aux clients.</span></div><button class="btn" type="submit">Enregistrer</button></form>`;
  const legal=ad?`<form class="panel" data-form="legal"><h2>Informations légales</h2><p class="muted small" style="margin-bottom:12px">Utilisées dans les mentions légales, la politique de confidentialité et les conditions de vente.</p>
  <div class="row"><div class="field"><label for="g-c">Raison sociale</label><input class="input" id="g-c" name="company" value="${esc(lg.company||'')}"></div><div class="field"><label for="g-f">Forme juridique</label><input class="input" id="g-f" name="form" placeholder="Ex. entreprise individuelle, SARL" value="${esc(lg.form||'')}"></div></div>
  <div class="row"><div class="field"><label for="g-n">NIF</label><input class="input" id="g-n" name="nif" value="${esc(lg.nif||'')}"></div><div class="field"><label for="g-r">RCCM</label><input class="input" id="g-r" name="rccm" value="${esc(lg.rccm||'')}"></div></div>
@@ -847,11 +872,12 @@ function pageSettings(){
  <div class="row"><div class="field"><label for="g-k">Contact pour les données personnelles</label><input class="input" id="g-k" name="contact" placeholder="E-mail ou téléphone" value="${esc(lg.contact||'')}"></div><div class="field"><label for="g-t">Conservation des commandes (années)</label><input class="input" id="g-t" name="retention" type="number" min="1" max="30" value="${esc(lg.retention||'')}"><span class="hint">À fixer avec votre comptable.</span></div></div>
  <button class="btn" type="submit">Enregistrer</button></form>`:'';
  const look=ad?`<div class="panel"><h2>Apparence</h2><div class="themes">${STYLES.map(t=>`<button class="theme" data-a="style" data-v="${t.id}" aria-pressed="${s.style===t.id}"><span class="sw">${t.sw.map(c=>`<i style="background:${c}"></i>`).join('')}</span><strong>${t.name}</strong><span class="muted small">${t.desc}</span></button>`).join('')}</div></div>`:'';
+ const notif=ad?`<div class="panel"><h2>Notifications par e-mail</h2><div class="cl"><div class="nm"><strong>Prévenir les clients par e-mail</strong><small>Commande reçue, prête, annulée</small></div><span class="switch"><input type="checkbox" role="switch" aria-label="Activer les e-mails aux clients" data-c="notifyEmail" ${s.notifyEmail?'checked':''}></span></div><p class="hint" style="margin-top:10px">À activer seulement après avoir configuré l'envoi (guide EMAIL.md). Le champ e-mail apparaît alors à la commande.</p></div>`:'';
  const pay=ad?`<div class="panel"><h2>Moyens de paiement</h2>${s.payments.map(p=>`<div class="cl"><div class="nm"><strong>${esc(p.label)}</strong><small>${p.kind==='momo'?'Mobile money':p.kind==='card'?'Carte bancaire':p.kind==='manual'?'Compte marchand (vérification par l\'équipe)':'Paiement au retrait'}</small></div><span class="switch"><input type="checkbox" role="switch" aria-label="Activer ${esc(p.label)}" data-c="payToggle" data-id="${p.id}" ${p.on?'checked':''}></span></div>${p.kind==='manual'?payDetailsForm(p):''}`).join('')}
  <form data-form="payAdd" style="margin-top:14px"><h3>Ajouter un moyen de paiement mobile</h3><div class="row"><div class="field"><label for="p-l">Nom</label><input class="input" id="p-l" name="label" placeholder="Ex. Wave" required></div><div class="field" style="align-self:end"><button class="btn" type="submit">Ajouter</button></div></div></form>
  <p class="hint">La connexion à l'agrégateur (CinetPay, PayDunya, SEMOA) se configure lors de la mise en production.</p></div>`:'';
  const data=ad&&!BACKEND?`<div class="panel"><h2>Données de démonstration</h2><p class="muted" style="margin-bottom:12px">Remet les commandes, plats, stocks et comptes à leur état initial.</p><button class="btn danger" data-a="resetDemo">Réinitialiser les données</button></div>`:'';
- return adminShell('parametres','Paramètres',`<div class="cols"><div>${idn}${contact}${hrs}</div><div>${look}${pay}${legal}${data}</div></div>`);
+ return adminShell('parametres','Paramètres',`<div class="cols"><div>${idn}${contact}${hrs}</div><div>${look}${pay}${notif}${legal}${data}</div></div>`);
 }
 
 /* ====================== profil, FAQ, activité ====================== */
@@ -860,19 +886,69 @@ function pageProfile(){
  return adminShell('profil','Mon profil',`<div class="cols"><form class="panel" data-form="profile"><h2>Mes informations</h2><div style="display:flex;gap:14px;align-items:center;margin-bottom:16px">${avatar(u,72).replace('<span class="av"','<span id="photoPrev" class="av"').replace('<img class="av"','<img id="photoPrev" class="av"')}<div><input type="file" accept="image/*" data-c="photoUser" aria-label="Changer la photo"><div class="hint">Changer la photo</div></div></div>
  <div class="field"><label for="m-n">Nom complet</label><input class="input" id="m-n" name="name" required value="${esc(u.name)}"></div><div class="field"><label for="m-c">Nouveau code d'accès (laisser vide pour ne pas changer)</label><input class="input" id="m-c" name="code" type="password" minlength="6" autocomplete="new-password"></div>
  <p class="muted small" style="margin-bottom:12px">Rôle : ${ROLES[u.role]}</p><button class="btn" type="submit">Enregistrer</button></form>
+ <div class="panel"><h2>Alertes de commandes</h2><p class="muted" style="margin-bottom:10px">Un son retentit à chaque nouvelle commande quand l'application est ouverte. Les notifications préviennent aussi quand elle est en arrière-plan.</p>${('Notification' in window)?(Notification.permission==='granted'?'<p><span class="st st-paid">Notifications activées</span></p>':Notification.permission==='denied'?'<p class="muted">Les notifications sont bloquées : autorisez-les dans les réglages du navigateur.</p>':'<button class="btn ghost" data-a="notifOn">Activer les notifications</button>'):'<p class="muted">Notifications non disponibles sur ce navigateur.</p>'}</div>
  <div class="panel"><h2>FAQ ${u.role==='admin'?'Administrateur':u.role==='gerant'?'Gérant':'Employé'}</h2>${faqHtml(u.role)}</div></div>`);
 }
 function pageLog(){
  return adminShell('activite','Activité de l\'équipe',`<div class="panel">${S.log.length?S.log.slice(0,120).map(l=>`<div class="logrow"><span class="muted">${esc(dshort(l.at))} à ${hm(l.at)}</span><strong>${esc(l.by)}</strong><span>${esc(l.text)}</span></div>`).join(''):'<div class="empty">Aucune activité enregistrée.</div>'}</div>`);
 }
-const GUARD={commandes:'commandes',plats:'menus',stocks:'stocks',credits:'credits',actualites:'actualites'};
+const GUARD={commandes:'commandes',cuisine:'commandes',plats:'menus',stocks:'stocks',credits:'credits',actualites:'actualites'};
 function pageAdmin(sub){
  if(!staff())return pageAdminLogin();
  const p=sub||'';
  if(GUARD[p]&&!can(GUARD[p]))return adminShell('','Accès refusé',`<div class="empty">Votre compte n'a pas le droit d'ouvrir cette page. Demandez à l'Administrateur de vous l'accorder.</div>`);
  if((p==='equipe'||p==='activite')&&!isAdmin())return adminShell('','Accès refusé',`<div class="empty">Cette page est réservée à l'Administrateur.</div>`);
  if(p==='parametres'&&!(isAdmin()||staff().role==='gerant'))return adminShell('','Accès refusé',`<div class="empty">Cette page est réservée à l'Administrateur et au Gérant.</div>`);
- return ({'':pageDash,commandes:pageOrders,plats:pageDishes,stocks:pageStocks,credits:pageCredits,actualites:pageAdminNews,equipe:pageTeam,parametres:pageSettings,profil:pageProfile,activite:pageLog}[p]||pageDash)();
+ return ({'':pageDash,commandes:pageOrders,cuisine:pageKitchen,plats:pageDishes,stocks:pageStocks,credits:pageCredits,actualites:pageAdminNews,equipe:pageTeam,parametres:pageSettings,profil:pageProfile,activite:pageLog}[p]||pageDash)();
+}
+
+/* ====================== mode cuisine : tableau plein écran pour la tablette ====================== */
+function pageKitchen(){
+ const u=staff();
+ const act=S.orders.filter(o=>['new','prep','ready'].includes(o.status));
+ const byPickup=(a,b)=>(a.pickupDate+a.pickupTime).localeCompare(b.pickupDate+b.pickupTime)||a.at-b.at;
+ const col=(st,title,hint)=>{
+  const l=act.filter(o=>o.status===st).sort(byPickup);
+  return `<section class="kcol k-${st}" aria-label="${title}"><h2>${title} <span class="kc">${l.length}</span></h2><p class="kh">${hint}</p>${l.length?l.map(kCard).join(''):'<div class="kempty">Aucune commande</div>'}</section>`;
+ };
+ const verif=act.filter(o=>o.payStatus==='à vérifier').length;
+ return `<div class="kitchen"><header class="khead"><div><strong>${esc(S.settings.name)}</strong> <span class="muted">Mode cuisine</span></div><div class="kright">${verif?`<span class="st st-new">${verif} paiement${verif>1?'s':''} à vérifier</span>`:''}<span class="kclock">${new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span><a class="btn ghost sm" style="color:#fff;border-color:rgba(255,255,255,.4)" href="#/admin">Quitter</a></div></header>
+ <div class="kgrid">${col('new','Nouvelles','À lancer')}${col('prep','En préparation','À finir')}${col('ready','Prêtes','À remettre au client')}</div></div>`;
+}
+function kCard(o){
+ const nx=NEXT[o.status],ver=o.payStatus==='à vérifier';
+ const late=o.pickupDate===dkey(Date.now())&&o.status!=='ready'&&(+o.pickupTime.slice(0,2)*60+ +o.pickupTime.slice(3,5))<(new Date().getHours()*60+new Date().getMinutes());
+ return `<article class="kc-card ${late?'late':''}"><div class="kc-top"><strong class="kc-num">${esc(o.num)}</strong><span class="kc-time">${hmc(o.pickupTime)}</span></div>
+  <div class="kc-name">${esc(o.name)}</div>
+  <ul class="kc-items">${o.items.map(i=>`<li><b>${i.qty}×</b> ${esc(i.name)}</li>`).join('')}</ul>
+  ${o.note?`<div class="kc-note">${esc(o.note)}</div>`:''}
+  ${o.payStatus==='à payer'?'<div class="kc-pay">À encaisser au retrait : '+money(o.due)+'</div>':''}
+  ${ver?`<button class="btn accent kc-btn" data-a="markPaid" data-id="${o.id}">Valider le paiement (réf. ${esc(o.ref||'')})</button>`:(nx?`<button class="btn kc-btn" data-a="advance" data-id="${o.id}">${nx[1]}</button>`:'')}
+ </article>`;
+}
+
+/* ====================== export CSV et ticket ====================== */
+const csvCell=v=>{const s=String(v==null?'':v).replace(/\r?\n/g,' ');return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function ordersCsv(list){
+ const head=['Numéro','Date','Heure de retrait','Client','Téléphone','Articles','Total (FCFA)','Crédit utilisé','Reste à payer','Moyen de paiement','Paiement','Statut','Référence de transaction','Instructions'];
+ const rows=list.map(o=>[o.num,new Date(o.at).toLocaleString('fr-FR'),o.pickupDate+' '+o.pickupTime,o.name,o.phone,o.items.map(i=>i.qty+'x '+i.name).join(' + '),o.subtotal,o.credit||0,o.due,o.methodLabel,o.payStatus,STATUS[o.status]||o.status,o.ref||'',o.note||'']);
+ return '\ufeff'+[head,...rows].map(r=>r.map(csvCell).join(';')).join('\r\n');
+}
+function ticketHtml(o){
+ const s=S.settings,pay=o.payStatus==='payé'?'PAYÉ':o.payStatus==='à vérifier'?'PAIEMENT À VÉRIFIER (réf. '+esc(o.ref||'')+')':o.payStatus==='à payer'?'À ENCAISSER : '+money(o.due):esc(String(o.payStatus).toUpperCase());
+ return `<!doctype html><html lang="fr"><meta charset="utf-8"><title>Ticket ${esc(o.num)}</title><style>
+ @page{margin:4mm}body{font:14px/1.35 system-ui,Arial,sans-serif;width:72mm;margin:0 auto;color:#000}
+ h1{font-size:16px;text-align:center;margin:0 0 2px}.c{text-align:center}.n{font-size:30px;font-weight:800;text-align:center;margin:6px 0}
+ .big{font-size:22px;font-weight:800;text-align:center}hr{border:0;border-top:1px dashed #000;margin:8px 0}
+ table{width:100%;border-collapse:collapse}td{padding:2px 0;vertical-align:top}td.r{text-align:right;white-space:nowrap}.note{border:2px solid #000;padding:4px;margin:6px 0;font-weight:700}
+ </style><h1>${esc(s.name)}</h1><div class="c">${esc(s.phone)}</div><hr>
+ <div class="n">${esc(o.num)}</div><div class="big">Retrait ${hmc(o.pickupTime)}</div><div class="c">${esc(dlong(keyDate(o.pickupDate)))}</div><hr>
+ <div><b>${esc(o.name)}</b><br>${esc(fmtPhone(o.phone))}</div><hr>
+ <table>${o.items.map(i=>`<tr><td>${i.qty}× ${esc(i.name)}</td><td class="r">${money(i.price*i.qty)}</td></tr>`).join('')}</table>
+ ${o.credit?`<table><tr><td>Crédit utilisé</td><td class="r">−${money(o.credit)}</td></tr></table>`:''}
+ <hr><table><tr><td><b>Total</b></td><td class="r"><b>${money(o.subtotal)}</b></td></tr></table>
+ ${o.note?`<div class="note">${esc(o.note)}</div>`:''}<div class="c"><b>${pay}</b></div>
+ <hr><div class="c">${esc(new Date().toLocaleString('fr-FR'))}</div></html>`;
 }
 /* ====================== rendu ====================== */
 function loadDB(){const r=ls.get(KEY);if(r){try{const o=JSON.parse(r);if(o&&o.v===1)return o}catch(e){}}return null}
@@ -881,11 +957,19 @@ function render(){
  document.documentElement.dataset.style=S.settings.style;
  document.title=S.settings.name+' – Menu, commande et gestion';
  const r=route(),top=r.p[0]||'';
+ if(top==='admin'&&STAFF_URL&&!STAFF_APP){location.replace(STAFF_URL);return}   // l'espace équipe vit sur son propre site
  const pages={'':()=>shell(pageHome()),menu:()=>shell(pageMenu()),actualites:pageNews,mentions:()=>pageLegal('mentions'),confidentialite:()=>pageLegal('confidentialite'),cgv:()=>pageLegal('cgv'),infos:pageInfo,faq:pageFaq,compte:pageAccount,commande:pageCheckout,suivi:()=>pageTrack(r.p[1]),admin:()=>pageAdmin(r.p[1])};
  const html=top==='admin'?pageAdmin(r.p[1]):(pages[top]||pageHome)();
  $('#app').innerHTML=html;
  keepAwake();
  const path=r.p.join('/');if(path!==lastPath){window.scrollTo(0,0);lastPath=path}
+}
+function notifyNew(n){
+ try{
+  if(!document.hidden||!('Notification' in window)||Notification.permission!=='granted')return;
+  const t=n>1?n+' nouvelles commandes':'Nouvelle commande',o={body:'Ouvrez l\'application pour la préparer.',icon:'icon-192.png',tag:'cq-new',renotify:true};
+  if(navigator.serviceWorker&&navigator.serviceWorker.ready)navigator.serviceWorker.ready.then(r=>r.showNotification(t,o)).catch(()=>{try{new Notification(t,o)}catch(e){}});else new Notification(t,o);
+ }catch(e){}
 }
 const isTyping=()=>{const a=document.activeElement;return !!a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)};
 function need(ok){if(!ok)toast(ls.get('cantine-staff')&&!staff()?'Votre compte est en cours de chargement : réessayez dans un instant.':'Votre compte n\'a pas ce droit.','bad');return ok}
@@ -893,7 +977,7 @@ function need(ok){if(!ok)toast(ls.get('cantine-staff')&&!staff()?'Votre compte e
 /* ====================== panier : actions ====================== */
 function captureDraft(){
  const f=$('#checkout');if(!f)return;const fd=new FormData(f),cb=$('#useCredit');
- ui.draft={name:fd.get('name'),phone:fd.get('phone'),day:fd.get('day'),time:fd.get('time'),note:fd.get('note'),method:fd.get('method'),momo:fd.get('momo'),cgv:!!fd.get('cgv'),useCredit:cb?cb.checked:undefined};
+ ui.draft={name:fd.get('name'),phone:fd.get('phone'),day:fd.get('day'),time:fd.get('time'),note:fd.get('note'),method:fd.get('method'),momo:fd.get('momo'),email:fd.get('email'),cgv:!!fd.get('cgv'),useCredit:cb?cb.checked:undefined};
 }
 function cartChange(){saveCart();if(route().p[0]==='commande')captureDraft();render();refreshDrawer()}
 function addToCart(id){const i=cart.items.find(x=>x.id===id);if(i)i.qty++;else cart.items.push({id,qty:1})}
@@ -901,6 +985,22 @@ function addToCart(id){const i=cart.items.find(x=>x.id===id);if(i)i.qty++;else c
 /* ====================== actions (clic) ====================== */
 const ACT={
  noop(){},
+ exportCsv(){
+  const l=ordersFiltered();if(!l.length){toast('Aucune commande à exporter.','bad');return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ordersCsv(l)],{type:'text/csv;charset=utf-8'}));a.download='commandes-'+dkey(Date.now())+'.csv';
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast(l.length+' commande'+(l.length>1?'s':'')+' exportée'+(l.length>1?'s':''),'ok');
+ },
+ printTicket(el){
+  const o=S.orders.find(x=>x.id===el.dataset.id);if(!o)return;
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(ticketHtml(o));f.contentDocument.close();
+  setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Impression impossible sur cet appareil.','bad')}setTimeout(()=>f.remove(),2000)},300);
+ },
+ async notifOn(){
+  if(!('Notification' in window)){toast('Les notifications ne sont pas disponibles sur ce navigateur.','bad');return}
+  try{const r=await Notification.requestPermission();toast(r==='granted'?'Alertes activées sur cet appareil':'Alertes refusées : autorisez-les dans les réglages du navigateur',r==='granted'?'ok':'bad')}catch(e){}
+  render();
+ },
  async install(){
   if(deferredInstall){const ev=deferredInstall;deferredInstall=null;try{ev.prompt();await ev.userChoice}catch(e){}render();return}
   const ios=isIOS();
@@ -975,6 +1075,7 @@ const CHG={
  pickupDay(el){captureDraft();ui.draft.day=el.value;ui.draft.time=undefined;render()},
  orange(el){oUi.range=el.value;render()},
  dishActive(el){if(!need(can('menus'))){el.checked=!el.checked;return}const d=dish(el.dataset.id);d.active=el.checked;logAct((d.active?'A activé':'A désactivé')+' le plat « '+d.name+' »');save();render()},
+ notifyEmail(el){if(!need(isAdmin())){el.checked=!el.checked;return}S.settings.notifyEmail=el.checked;logAct((el.checked?'A activé':'A désactivé')+' les e-mails aux clients');save();render()},
  payToggle(el){if(!need(isAdmin())){el.checked=!el.checked;return}const p=payById(el.dataset.id);p.on=el.checked;logAct((p.on?'A activé':'A désactivé')+' le paiement '+p.label);save();render()},
  async photo(el){const f=el.files[0];if(!f)return;try{tmpPhoto=await readImage(f);const p=$('#photoPrev');if(p)p.innerHTML=`<img src="${tmpPhoto}" alt="Aperçu">`}catch(e){toast('Image illisible, essayez un autre fichier.','bad')}},
  async photoUser(el){const f=el.files[0];if(!f)return;try{tmpPhoto=await readImage(f,256);const p=$('#photoPrev');if(p){const w=p.style.width||'56px';p.outerHTML=`<img id="photoPrev" class="av" style="width:${w};height:${w}" src="${tmpPhoto}" alt="Aperçu">`}}catch(e){toast('Image illisible, essayez un autre fichier.','bad')}},
@@ -992,8 +1093,11 @@ const FORMS={
   const name=String(fd.get('name')||'').trim(),phone=normPhone(fd.get('phone'));
   if(!name)return fail('Indiquez votre nom.');
   if(phone.length!==8)return fail('Le téléphone doit comporter 8 chiffres.');
+  const email=String(fd.get('email')||'').trim().toLowerCase();
+  if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return fail('Adresse e-mail invalide.');
   const op=pickupOptions().find(x=>x.key===fd.get('day')),time=fd.get('time');
   if(!op||!op.slots.includes(time))return fail('Choisissez un créneau de retrait valide.');
+  if(slotFull(op.key,time))return fail('Ce créneau est complet : choisissez une autre heure.');
   const pm=payById(fd.get('method'));if(!pm||!pm.on)return fail('Choisissez un moyen de paiement.');
   if(!fd.get('cgv'))return fail('Cochez l\'acceptation des conditions de vente et de la politique de confidentialité.');
   const total=cartTotal(),cl=client(),credit=cl&&fd.get('useCredit')?Math.min(cl.credit,total):0,due=total-credit;
@@ -1012,7 +1116,7 @@ const FORMS={
   }
   const c2=client(),num='A-'+(++S.seq),now=Date.now();
   const items=lines.map(l=>({id:l.id,name:l.id==='formule'?'Formule du jour ('+l.sub+')':l.name,price:l.price,qty:l.qty}));
-  const o={id:uid(),num,at:now,name,phone,pickupDate:op.key,pickupTime:time,items,subtotal:total,credit,due,method:due===0?'credit':pm.id,methodLabel:due===0?'Crédit client':pm.label,
+  const o={id:uid(),num,at:now,name,phone,email:S.settings.notifyEmail?email:'',pickupDate:op.key,pickupTime:time,items,subtotal:total,credit,due,method:due===0?'credit':pm.id,methodLabel:due===0?'Crédit client':pm.label,
    payStatus:due===0?'payé':pm.kind==='cash'?'à payer':'payé',status:'new',clientId:c2?c2.id:null,note:String(fd.get('note')||'').trim(),history:[{s:'new',at:now,by:'Client'}]};
   if(credit>0&&c2)addCredit(c2,-credit,'Commande '+num,'Client');
   S.orders.push(o);save();cart.items=[];saveCart();ui.draft={};remember(num);
@@ -1099,7 +1203,7 @@ const FORMS={
  hours(f){
   if(!need(isAdmin()||staff().role==='gerant'))return;const fd=new FormData(f),h={};
   for(let d=0;d<7;d++){if(fd.get('o'+d)){const a=fd.get('f'+d),b=fd.get('t'+d);if(!a||!b||toMin(a)>=toMin(b)){toast('Vérifiez les horaires de '+DAYNAMES[d]+' : l\'ouverture doit précéder la fermeture.','bad');return}h[d]=[a,b]}else h[d]=null}
-  S.settings.hours=h;S.settings.prepMin=Math.max(5,+fd.get('prep')||20);S.settings.slot=+fd.get('slot')||15;logAct('A modifié les horaires');save();render();toast('Horaires enregistrés','ok');
+  S.settings.hours=h;S.settings.prepMin=Math.max(5,+fd.get('prep')||20);S.settings.slot=+fd.get('slot')||15;S.settings.slotCap=Math.max(0,Math.min(200,Math.round(+fd.get('cap')||0)));logAct('A modifié les horaires');save();render();toast('Horaires enregistrés','ok');
  },
  payAdd(f){if(!need(isAdmin()))return;const l=String(new FormData(f).get('label')||'').trim();if(!l)return;S.settings.payments.push({id:'p'+uid(),label:l,kind:'momo',on:true,hint:'Paiement mobile'});logAct('A ajouté le moyen de paiement '+l);save();render()},
  profile(f){
@@ -1128,7 +1232,7 @@ window.addEventListener('storage',e=>{
  if(e.key===KEY&&e.newValue){
   const before=S.orders.length;let n;try{n=JSON.parse(e.newValue)}catch(x){return}
   S=n;const added=S.orders.length-before;
-  if(added>0&&staff()){toast(added>1?added+' nouvelles commandes':'Nouvelle commande reçue','ok');beep()}
+  if(added>0&&staff()){toast(added>1?added+' nouvelles commandes':'Nouvelle commande reçue','ok');beep();notifyNew(added)}
   if(!modalOpen()&&!isTyping())render();
  }
  if(e.key==='cantine-cart'){try{const c=JSON.parse(e.newValue||'{"items":[]}');if(c&&Array.isArray(c.items))cart=c;refreshDrawer()}catch(x){}}

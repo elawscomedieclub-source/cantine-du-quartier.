@@ -43,9 +43,31 @@ const ACCOUNTS=!(BACKEND&&window.CANTINE_CONFIG.clientAccounts===false);
 const STATUS={awaiting:'Paiement en attente',new:'Nouvelle',prep:'En préparation',ready:'Prête',done:'Récupérée',cancelled:'Annulée'};
 const FLOW=['new','prep','ready','done'];
 const NEXT={new:['prep','Lancer la préparation'],prep:['ready','Marquer prête'],ready:['done','Marquer récupérée']};
-const RIGHTS={commandes:'Commandes',menus:'Plats et menus',stocks:'Stocks',credits:'Crédits clients',actualites:'Actualités',stats:'Statistiques'};
-const GERANT_RIGHTS=['commandes','menus','stocks','credits','actualites','stats'];
-const ROLES={admin:'Administrateur',gerant:'Gérant',employe:'Employé'};
+const RIGHTS={commandes:'Commandes',caisse:'Caisse',cuisine:'Cuisine',menus:'Plats et menus',stocks:'Stocks',credits:'Crédits clients',actualites:'Actualités',stats:'Statistiques'};
+const GERANT_RIGHTS=['commandes','caisse','cuisine','menus','stocks','credits','actualites','stats'];
+const ROLES={
+  admin:'Administrateur',
+  gerant:'Gérant',
+  employe:'Employé',
+  caissier:'Caissier',
+  serveur:'Serveur',
+  cuisinier:'Cuisinier',
+  assistant_cuisine:'Assistant cuisinier'
+};
+/* Droits par défaut selon le poste (modifiables ensuite pour les employés polyvalents) */
+const ROLE_RIGHTS={
+  caissier:['commandes','caisse','credits'],
+  serveur:['commandes'],
+  cuisinier:['commandes','cuisine'],
+  assistant_cuisine:['commandes','cuisine'],
+  employe:['commandes']
+};
+const ROLE_HOME={
+  caissier:'caisse',
+  serveur:'service',
+  cuisinier:'cuisine',
+  assistant_cuisine:'cuisine'
+};
 const STYLES=[
  {id:'nature',name:'Frais & Nature',desc:'Vert doux, crème, touches d\'orange',sw:['#3A7650','#F8F5E8','#F28C1B']},
  {id:'gourmand',name:'Chaleureux & Gourmand',desc:'Tons chauds, épices et miel',sw:['#B2491B','#FBF2E6','#E9A92B']},
@@ -97,8 +119,11 @@ function seed(){
  const users=[
   {id:'u1',name:'Kossi Mensah',login:'admin',code:'xxxxxxxx',role:'admin',rights:[],photo:'',active:true},
   {id:'u2',name:'Ama Dossou',login:'gerant',code:'xxxxxxxx',role:'gerant',rights:[],photo:'',active:true},
-  {id:'u3',name:'Yao Agbeko',login:'employe',code:'xxxxxxxx',role:'employe',rights:['commandes','menus'],photo:'',active:true},
-  {id:'u4',name:'Afi Lawson',login:'afi',code:'xxxxxxxx',role:'employe',rights:['commandes'],photo:'',active:true}
+  {id:'u3',name:'Yao Agbeko',login:'employe',code:'xxxxxxxx',role:'employe',rights:['commandes','menus','caisse'],photo:'',active:true},
+  {id:'u4',name:'Afi Lawson',login:'afi',code:'xxxxxxxx',role:'caissier',rights:[],photo:'',active:true},
+  {id:'u5',name:'Komla Gbedey',login:'cuisine',code:'xxxxxxxx',role:'cuisinier',rights:[],photo:'',active:true},
+  {id:'u6',name:'Sena Ayivi',login:'assistant',code:'xxxxxxxx',role:'assistant_cuisine',rights:[],photo:'',active:true},
+  {id:'u7',name:'Edem Kpodar',login:'serveur',code:'xxxxxxxx',role:'serveur',rights:[],photo:'',active:true}
  ];
  const now=Date.now();
  const clients=[
@@ -165,7 +190,19 @@ const dish=id=>S.dishes.find(d=>d.id===id);
 const client=()=>S.clients.find(c=>c.id===ls.get('cantine-client'))||null;
 const staff=()=>S.users.find(u=>u.id===ls.get('cantine-staff')&&u.active)||null;
 const isAdmin=()=>{const u=staff();return !!u&&u.role==='admin'};
-function can(r){const u=staff();if(!u)return false;if(u.role==='admin')return true;if(u.role==='gerant')return GERANT_RIGHTS.includes(r);return (u.rights||[]).includes(r)}
+function can(r){
+  const u=staff();if(!u)return false;
+  if(u.role==='admin')return true;
+  if(u.role==='gerant')return GERANT_RIGHTS.includes(r);
+  /* Admin / gérant / employé / rôles spécialisés : un droit explicite ou le pack du poste */
+  const pack=ROLE_RIGHTS[u.role]||[];
+  const own=u.rights||[];
+  if(own.length)return own.includes(r)||(r==='caisse'&&own.includes('commandes'))||(r==='cuisine'&&own.includes('commandes'));
+  return pack.includes(r);
+}
+function roleLabel(role){return ROLES[role]||role||'Équipe'}
+function canCaisse(){return can('caisse')||can('commandes')}
+function canCuisine(){return can('cuisine')||can('commandes')}
 function logAct(text){const u=staff();S.log.unshift({at:Date.now(),by:u?u.name:'Client',text});S.log=S.log.slice(0,300)}
 const pays=()=>S.settings.payments.filter(p=>p.on);
 const payById=id=>S.settings.payments.find(p=>p.id===id);
@@ -336,19 +373,19 @@ function pageHome(){
    <span class="status ${oi.open?'on':''}"><i></i>${esc(oi.text)}</span>
    <h1>${esc(s.name)}</h1>
    <p class="lead">${esc(s.tagline)}</p>
-   <div class="actions"><a class="btn accent lg" href="#/menu">Commander maintenant</a><a class="btn ghost lg" href="${mapsUrl()}" target="_blank" rel="noopener">Itinéraire</a></div>
+   <div class="actions"><a class="btn accent lg" href="#/menu">Commander</a><a class="btn ghost lg" href="${mapsUrl()}" target="_blank" rel="noopener">Itinéraire</a></div>
    <p class="paynote">Paiement par ${pays().map(p=>esc(p.label)).join(', ')||'espèces'}. Aucun compte nécessaire.</p>
   </div>
   ${board()}
  </section>
- <section class="wrap block steps alive-in"><h2 style="margin-bottom:20px">Commander en trois étapes</h2><ol>
-  <li class="alive-in alive-in-d1"><b>1</b><div><strong>Choisissez vos plats</strong><span class="muted">Parcourez la carte et remplissez votre panier en quelques taps.</span></div></li>
-  <li class="alive-in alive-in-d2"><b>2</b><div><strong>Réglez en ligne ou au retrait</strong><span class="muted">Mobile money, carte ou espèces à la caisse — simple et rapide.</span></div></li>
-  <li class="alive-in alive-in-d3"><b>3</b><div><strong>Récupérez à l'heure choisie</strong><span class="muted">Votre repas est prêt à l'heure, sans file d'attente.</span></div></li>
+ <section class="wrap block steps"><h2 style="margin-bottom:20px">Commander en trois étapes</h2><ol>
+  <li><b>1</b><div><strong>Choisissez vos plats</strong><span class="muted">Parcourez la carte et remplissez votre panier.</span></div></li>
+  <li><b>2</b><div><strong>Réglez en ligne ou au retrait</strong><span class="muted">Mobile money, carte ou espèces à la caisse.</span></div></li>
+  <li><b>3</b><div><strong>Récupérez à l'heure choisie</strong><span class="muted">Votre repas est prêt, sans file d'attente.</span></div></li>
  </ol></section>
- ${sug.length?`<section class="wrap block alive-in alive-in-d2"><div class="sechead"><h2>À ne pas manquer</h2><a href="#/menu">Voir toute la carte →</a></div><div class="grid snap">${sug.map(dcard).join('')}</div></section>`:''}
- ${news.length?`<section class="wrap block alive-in alive-in-d3"><div class="sechead"><h2>Actualités</h2><a href="#/actualites">Toutes les actualités →</a></div><div class="news">${news.map(newsItem).join('')}</div></section>`:''}
- <section class="wrap block alive-in alive-in-d4"><div class="loc">
+ ${sug.length?`<section class="wrap block"><div class="sechead"><h2>À ne pas manquer</h2><a href="#/menu">Voir toute la carte</a></div><div class="grid snap">${sug.map(dcard).join('')}</div></section>`:''}
+ ${news.length?`<section class="wrap block"><div class="sechead"><h2>Actualités</h2><a href="#/actualites">Toutes les actualités</a></div><div class="news">${news.map(newsItem).join('')}</div></section>`:''}
+ <section class="wrap block"><div class="loc">
   <div><h2>Venir à la cantine</h2><p class="muted" style="margin-top:10px">${esc(s.address)}</p>${hoursList()}
    <div class="actions"><a class="btn" href="${mapsUrl()}" target="_blank" rel="noopener">Y aller</a><a class="btn ghost" href="tel:${esc(s.phone.replace(/\s/g,''))}">Appeler</a></div></div>
   <div class="mapbox">${mapArt()}</div>
@@ -542,34 +579,49 @@ function pageNews(){
 }
 const FAQ={
  client:[
-  ['Comment passer une commande ?','Ajoutez des plats au panier, ouvrez le panier, choisissez votre heure de retrait puis payez. Aucun compte n\'est nécessaire.'],
+  ['Comment passer une commande ?','Ajoutez des plats au panier, validez, choisissez le jour et l\'heure de retrait, puis payez. Aucun compte n\'est obligatoire.'],
   ['Quels moyens de paiement sont acceptés ?','{pay}'],
-  ['Puis-je modifier ou annuler ma commande ?','Vous pouvez l\'annuler vous-même depuis la page de suivi tant qu\'elle est « Nouvelle ». Pour la modifier, appelez le {phone}. Une fois la préparation lancée, nous ne pouvons plus la changer.'],
+  ['Puis-je modifier ou annuler ma commande ?','Vous pouvez l\'annuler depuis la page de suivi tant qu\'elle est « Nouvelle ». Une fois la préparation lancée, appelez le {phone}.'],
+  ['Comment suivre ma commande ?','Utilisez « Suivre ma commande » avec le numéro et votre téléphone.'],
   ['Quels sont les horaires ?','{hours}'],
-  ['Y a-t-il des options végétariennes ou sans allergènes ?','Oui. Activez le filtre « Végétarien » sur la carte. Les allergènes sont indiqués sous chaque plat.'],
-  ['Que faire en cas de problème avec ma commande ?','Appelez le {phone} en indiquant votre numéro de commande. Si un paiement a été débité sans commande validée, nous le vérifions et le remboursons.'],
-  ['Comment trouver la cantine ?','Ouvrez « Infos et accès » : la carte et le bouton Itinéraire vous guident. Adresse : {address}.']],
+  ['Y a-t-il des options végétariennes ?','Oui. Filtre « Végétarien » sur la carte. Les allergènes sont indiqués sous chaque plat.'],
+  ['Un créneau est « Complet » ?','Choisissez une autre heure. Les créneaux saturés ne sont plus proposés.'],
+  ['Comment trouver la cantine ?','« Infos et accès ». Adresse : {address}.'],
+  ['Problème avec ma commande ?','Appelez le {phone} avec votre numéro de commande.']],
  employe:[
-  ['Comment voir les commandes du jour ?','Ouvrez Commandes dans le menu : le filtre « Aujourd\'hui » est activé. Les nouvelles commandes apparaissent seules.'],
-  ['Comment changer le statut d\'une commande ?','Ouvrez la commande puis choisissez le statut : Nouvelle, En préparation, Prête, Récupérée. Le client voit le changement tout de suite.'],
-  ['Comment ajouter ou modifier un plat ?','Plats et menu, onglet Carte : « Ajouter un plat » ou « Modifier » sur un plat. Il faut le droit « Plats et menus ».'],
-  ['Comment changer le Menu du jour ?','Plats et menu, onglet Menu du jour : cochez les plats, indiquez le prix de la formule, puis Enregistrer.'],
-  ['Comment mettre à jour ma photo de profil ?','Ouvrez Mon profil et utilisez « Changer la photo ».'],
-  ['Que faire si un client veut modifier sa commande ?','Si la commande est « Nouvelle », annulez-la et invitez le client à en passer une nouvelle. Si elle est en préparation, prévenez le gérant.']],
+  ['Que puis-je faire avec mon compte Employé ?','Selon les droits donnés par l\'admin : commandes, caisse, cuisine, plats, stocks, etc. Demandez la polyvalence si besoin (ex. aussi caissier).'],
+  ['Où voir les commandes ?','Menu Commandes ou Mode cuisine.'],
+  ['Comment faire avancer une commande ?','Nouvelle → En préparation → Prête → Récupérée.']],
+ caissier:[
+  ['Quelle est ma page d\'accueil ?','La Caisse s\'ouvre en premier : à encaisser, paiements à vérifier, retards, tickets.'],
+  ['Comment encaisser ?','Filtre « À encaisser », puis « Encaisser » ou « Valider paiement » pour le mobile money.'],
+  ['Puis-je voir la cuisine ?','Non par défaut. L\'admin peut vous ajouter le droit Cuisine si vous aidez aussi en préparation.'],
+  ['Le gérant peut-il encaisser aussi ?','Oui. Admin, gérant et employé avec le droit Caisse peuvent utiliser la même page Caisse.'],
+  ['Comment imprimer un ticket ?','Bouton « Ticket » sur la commande.']],
+ serveur:[
+  ['Quelle est ma page d\'accueil ?','Service (salle) : commandes prêtes à remettre et celles bientôt prêtes.'],
+  ['Que faire quand un plat est prêt ?','Appelez le client (nom / numéro), remettez le plateau, puis « Remise au client ».'],
+  ['Paiement en espèces au retrait ?','Orientez le client vers la caisse avant ou pendant la remise.'],
+  ['Puis-je lancer la préparation ?','En général non : c\'est le rôle cuisine. L\'admin peut élargir vos droits si besoin.']],
+ cuisinier:[
+  ['Quelle est ma page d\'accueil ?','Mode cuisine (plein écran) : colonnes Nouvelles, En préparation, Prêtes.'],
+  ['Comment travailler une commande ?','« Lancer la préparation », puis « Marquer prête ». Le serveur s\'occupe de la remise.'],
+  ['À quoi sert « Je prends » ?','Indique que vous avez pris la commande, pour éviter les doublons avec l\'assistant.'],
+  ['Qui m\'aide ?','L\'assistant cuisinier a le même écran cuisine.']],
+ assistant_cuisine:[
+  ['Quelle est ma page d\'accueil ?','Mode cuisine, comme le cuisinier.'],
+  ['Que dois-je faire ?','Aider à lancer et terminer les préparations, cocher « Je prends » sur les commandes que vous traitez.'],
+  ['Puis-je encaisser ?','Non par défaut. Demandez le droit Caisse à l\'admin si vous devez aussi tenir la caisse.']],
  gerant:[
-  ['Comment gérer les inventaires et les stocks ?','Menu Stocks : ajustez les quantités avec + et −, fixez un seuil d\'alerte par article. Les articles sous le seuil apparaissent sur le tableau de bord.'],
-  ['Quels sont mes droits par rapport à l\'Administrateur ?','Vous gérez commandes, menus, stocks, crédits, actualités, statistiques, horaires et coordonnées. Seul l\'Administrateur gère l\'équipe, le nom de la cantine, le style et les moyens de paiement.'],
-  ['Comment voir les statistiques de vente ?','Tableau de bord : chiffre d\'affaires du jour, ventes sur 7 jours et plats les plus vendus.'],
-  ['Comment gérer les crédits clients ?','Menu Crédits : ouvrez un client, ajoutez ou retirez un montant avec un motif. L\'historique garde chaque mouvement.'],
-  ['Comment publier une information importante ?','Actualités, « Nouvelle actualité ». Cochez « À la une » pour la garder en haut de la page.'],
-  ['Comment aider un employé qui a un problème ?','Vérifiez ses droits avec l\'Administrateur. Vous pouvez aussi changer le statut des commandes à sa place.']],
+  ['Puis-je tenir la caisse ?','Oui. Ouvrez Caisse comme un caissier.'],
+  ['Comment gérer les stocks / inventaire ?','Stocks : quantités quotidiennes, et sessions d\'inventaire pour départ, vendu, manques, jetés, reste.'],
+  ['Comment suivre le CA du jour ?','Tableau de bord : commandes, chiffre d\'affaires, panier moyen, alertes.'],
+  ['Droits de l\'équipe ?','Seul l\'admin crée les comptes ; vous gérez commandes, menus, stocks, crédits, actualités.']],
  admin:[
-  ['Comment créer un compte Gérant ou Employé ?','Équipe, « Ajouter un membre » : nom, identifiant, code d\'accès et rôle.'],
-  ['Comment donner ou retirer des droits à un employé ?','Équipe, « Modifier » sur l\'employé, puis cochez ou décochez ses droits.'],
-  ['Comment changer le nom de la cantine ?','Paramètres, section Identité. Ce champ n\'est visible que par l\'Administrateur.'],
-  ['Comment changer le style et les couleurs du site ?','Paramètres, section Apparence : choisissez un des quatre styles. Il s\'applique immédiatement.'],
-  ['Comment configurer les moyens de paiement (Mixx, Flooz, Carte) ?','Paramètres, section Paiements : activez ou désactivez chaque moyen. La liaison à l\'agrégateur (CinetPay, PayDunya…) se fait à la mise en production.'],
-  ['Comment voir toutes les activités de l\'équipe ?','Menu Activité : le journal indique qui a fait quoi et quand.']]
+  ['Comment créer un caissier, serveur, cuisinier ou assistant ?','Équipe → Ajouter un membre → choisir le poste (rôle). Chaque poste ouvre la bonne page d\'accueil.'],
+  ['Un employé peut-il aussi être caissier ?','Oui : rôle Employé + cochez le droit « Caisse », ou rôle Caissier directement.'],
+  ['Comment configurer les alertes WhatsApp ?','Paramètres → Alertes WhatsApp (numéro personnel de chaque membre).'],
+  ['Où voir l\'activité ?','Menu Activité.']]
 };
 function faqHtml(role){
  const s=S.settings,hrs=[1,2,3,4,5,6,0].filter(d=>s.hours[d]).map(d=>cap(DAYNAMES[d])+' '+hmc(s.hours[d][0])+' à '+hmc(s.hours[d][1])).join(' ; ');
@@ -628,7 +680,9 @@ function pageLegal(kind){
 const ADM=[
  ['','Tableau de bord',()=>true],
  ['commandes','Commandes',()=>can('commandes')],
- ['cuisine','Mode cuisine',()=>can('commandes')],
+ ['caisse','Caisse',()=>canCaisse()],
+ ['cuisine','Mode cuisine',()=>canCuisine()],
+ ['service','Service (salle)',()=>can('commandes')&&(staff().role==='serveur'||staff().role==='admin'||staff().role==='gerant'||staff().role==='employe'||(staff().rights||[]).includes('commandes'))],
  ['plats','Plats et menu',()=>can('menus')],
  ['stocks','Stocks',()=>can('stocks')],
  ['credits','Crédits clients',()=>can('credits')],
@@ -654,7 +708,7 @@ function pageAdminLogin(){
  <div class="field"><label for="s-c">Code d'accès</label><input class="input" id="s-c" name="code" type="password" autocomplete="current-password" required></div>
  <p class="err" role="alert" id="slErr"></p><button class="btn" style="width:100%" type="submit">Se connecter</button></form>
  ${BACKEND||PROD?'':`<div class="demo"><p class="muted small">Comptes de démonstration (touchez pour remplir) :</p>
- ${[['admin','xxxxxxxx','Administrateur'],['gerant','xxxxxxxx','Gérant'],['employe','xxxxxxxx','Employé']].map(([l,c,r])=>`<button data-a="fillLogin" data-l="${l}" data-c="${c}"><span>${r}</span><span class="muted">${l} / ${c}</span></button>`).join('')}</div>`}
+ ${[['admin','xxxxxxxx','Administrateur'],['gerant','xxxxxxxx','Gérant'],['afi','xxxxxxxx','Caissier'],['cuisine','xxxxxxxx','Cuisinier'],['assistant','xxxxxxxx','Assistant cuisine'],['serveur','xxxxxxxx','Serveur'],['employe','xxxxxxxx','Employé']].map(([l,c,r])=>`<button data-a="fillLogin" data-l="${l}" data-c="${c}"><span>${r}</span><span class="muted">${l} / ${c}</span></button>`).join('')}</div>`}
  <p style="margin-top:18px"><a href="#/">Retour au site</a></p></div>`;
 }
 
@@ -849,8 +903,10 @@ function userForm(u){
  openModal(`${dlgHead(nw?'Ajouter un membre':'Modifier '+u.name)}<form data-form="user" data-id="${nw?'':u.id}">
  <div class="row"><div class="field"><label for="u-n">Nom complet</label><input class="input" id="u-n" name="name" required value="${esc(u.name)}"></div><div class="field"><label for="u-l">Identifiant</label><input class="input" id="u-l" name="login" required value="${esc(u.login)}" autocomplete="off"></div></div>
  <div class="row"><div class="field"><label for="u-c">Code d'accès</label><input class="input" id="u-c" name="code" ${nw||!BACKEND?'required':''} minlength="6" value="${esc(u.code||'')}" ${BACKEND&&!nw?'placeholder="Laisser vide pour ne pas changer"':''} autocomplete="off"></div>
- <div class="field"><label for="u-r">Rôle</label><select class="input" id="u-r" name="role" data-c="roleSel" ${locked?'disabled':''}>${locked?'<option>Administrateur</option>':`<option value="gerant" ${u.role==='gerant'?'selected':''}>Gérant</option><option value="employe" ${u.role==='employe'?'selected':''}>Employé</option>`}</select></div></div>
- <div class="field" id="rightsBox" ${u.role==='employe'?'':'hidden'}><span class="lab">Droits de l'employé</span><div class="checks">${Object.entries(RIGHTS).map(([k,l])=>`<label class="check"><input type="checkbox" name="rights" value="${k}" ${u.rights.includes(k)?'checked':''}>${l}</label>`).join('')}</div></div>
+ <div class="field"><label for="u-r">Rôle / poste</label><select class="input" id="u-r" name="role" data-c="roleSel" ${locked?'disabled':''}>${locked?'<option>Administrateur</option>':Object.entries(ROLES).filter(([k])=>k!=='admin').map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></div></div>
+ <p class="hint" style="margin-top:-6px;margin-bottom:10px">Caissier, serveur, cuisinier et assistant ont un écran d'accueil adapté. Le gérant, l'admin et un employé avec le droit Caisse peuvent aussi encaisser.</p>
+ <div class="field" id="rightsBox" ${['employe','caissier','serveur','cuisinier','assistant_cuisine'].includes(u.role)?'':'hidden'}><span class="lab">Droits (en plus du poste)</span><div class="checks">${Object.entries(RIGHTS).map(([k,l])=>`<label class="check"><input type="checkbox" name="rights" value="${k}" ${(u.rights||[]).includes(k)?'checked':''}>${l}</label>`).join('')}</div>
+ <p class="hint">Laissez vide pour utiliser les droits standard du poste. Cochez pour polyvalence (ex. employé aussi caissier).</p></div>
  <div class="field"><span class="lab">Photo</span><div style="display:flex;gap:12px;align-items:center">${avatar(u,56).replace('<span class="av"','<span id="photoPrev" class="av"').replace('<img class="av"','<img id="photoPrev" class="av"')}<input type="file" accept="image/*" data-c="photoUser" aria-label="Choisir une photo"></div></div>
  ${locked?'':`<label class="check"><input type="checkbox" name="active" ${u.active?'checked':''}>Compte actif</label>`}
  <p class="err" role="alert" id="uErr"></p>
@@ -873,27 +929,11 @@ function pageSettings(){
  <button class="btn" type="submit">Enregistrer</button></form>`:'';
  const look=ad?`<div class="panel"><h2>Apparence</h2><div class="themes">${STYLES.map(t=>`<button class="theme" data-a="style" data-v="${t.id}" aria-pressed="${s.style===t.id}"><span class="sw">${t.sw.map(c=>`<i style="background:${c}"></i>`).join('')}</span><strong>${t.name}</strong><span class="muted small">${t.desc}</span></button>`).join('')}</div></div>`:'';
  const notif=ad?`<div class="panel"><h2>Notifications par e-mail</h2><div class="cl"><div class="nm"><strong>Prévenir les clients par e-mail</strong><small>Commande reçue, prête, annulée</small></div><span class="switch"><input type="checkbox" role="switch" aria-label="Activer les e-mails aux clients" data-c="notifyEmail" ${s.notifyEmail?'checked':''}></span></div><p class="hint" style="margin-top:10px">À activer seulement après avoir configuré l'envoi (guide EMAIL.md). Le champ e-mail apparaît alors à la commande.</p></div>`:'';
- const waList=s.whatsapp||[];
- const wa=ad?`<div class="panel"><h2>Alertes WhatsApp (équipe)</h2>
- <p class="muted" style="margin-bottom:12px">À chaque nouvelle commande, un message WhatsApp est envoyé aux numéros configurés (service gratuit CallMeBot).</p>
- <ol class="muted small" style="margin:0 0 14px 18px;padding:0;line-height:1.55">
-  <li>Sur le téléphone de la personne, ouvrez WhatsApp et écrivez <strong>I allow callmebot to send me messages</strong> au numéro <strong>+34 644 66 78 42</strong>.</li>
-  <li>CallMeBot répond avec une <strong>clé API</strong> (apikey).</li>
-  <li>Ajoutez ci-dessous le numéro international (ex. 22890123456) et cette clé.</li>
- </ol>
- ${waList.length?`<div style="margin-bottom:12px">${waList.map((c,i)=>`<div class="cl"><div class="nm"><strong>${esc(c.name||c.phone)}</strong><small>${esc(c.phone)} · clé ${esc(String(c.key||'').slice(0,4))}…</small></div>
-  <span class="switch"><input type="checkbox" role="switch" aria-label="Activer ${esc(c.name||c.phone)}" data-c="waToggle" data-i="${i}" ${c.on!==false?'checked':''}></span>
-  <button class="btn ghost sm" data-a="waDel" data-i="${i}" type="button">Retirer</button></div>`).join('')}</div>`:'<p class="muted small" style="margin-bottom:12px">Aucun numéro pour l\'instant.</p>'}
- <form data-form="waAdd"><div class="row"><div class="field"><label for="wa-n">Prénom ou poste</label><input class="input" id="wa-n" name="name" placeholder="Ex. Cuisine, Ama" required></div>
- <div class="field"><label for="wa-p">Numéro WhatsApp (avec indicatif)</label><input class="input" id="wa-p" name="phone" placeholder="22890123456" required></div></div>
- <div class="field"><label for="wa-k">Clé API CallMeBot</label><input class="input" id="wa-k" name="key" placeholder="123456" required></div>
- <button class="btn" type="submit">Ajouter ce numéro</button></form>
- <p class="hint" style="margin-top:12px">Le message contient le n° de commande, le client, l'heure de retrait et le total. Fonctionne même si l'espace équipe est fermé.</p></div>`:'';
  const pay=ad?`<div class="panel"><h2>Moyens de paiement</h2>${s.payments.map(p=>`<div class="cl"><div class="nm"><strong>${esc(p.label)}</strong><small>${p.kind==='momo'?'Mobile money':p.kind==='card'?'Carte bancaire':p.kind==='manual'?'Compte marchand (vérification par l\'équipe)':'Paiement au retrait'}</small></div><span class="switch"><input type="checkbox" role="switch" aria-label="Activer ${esc(p.label)}" data-c="payToggle" data-id="${p.id}" ${p.on?'checked':''}></span></div>${p.kind==='manual'?payDetailsForm(p):''}`).join('')}
  <form data-form="payAdd" style="margin-top:14px"><h3>Ajouter un moyen de paiement mobile</h3><div class="row"><div class="field"><label for="p-l">Nom</label><input class="input" id="p-l" name="label" placeholder="Ex. Wave" required></div><div class="field" style="align-self:end"><button class="btn" type="submit">Ajouter</button></div></div></form>
  <p class="hint">La connexion à l'agrégateur (CinetPay, PayDunya, SEMOA) se configure lors de la mise en production.</p></div>`:'';
  const data=ad&&!BACKEND?`<div class="panel"><h2>Données de démonstration</h2><p class="muted" style="margin-bottom:12px">Remet les commandes, plats, stocks et comptes à leur état initial.</p><button class="btn danger" data-a="resetDemo">Réinitialiser les données</button></div>`:'';
- return adminShell('parametres','Paramètres',`<div class="cols"><div>${idn}${contact}${hrs}</div><div>${look}${pay}${notif}${wa}${legal}${data}</div></div>`);
+ return adminShell('parametres','Paramètres',`<div class="cols"><div>${idn}${contact}${hrs}</div><div>${look}${pay}${notif}${legal}${data}</div></div>`);
 }
 
 /* ====================== profil, FAQ, activité ====================== */
@@ -903,19 +943,105 @@ function pageProfile(){
  <div class="field"><label for="m-n">Nom complet</label><input class="input" id="m-n" name="name" required value="${esc(u.name)}"></div><div class="field"><label for="m-c">Nouveau code d'accès (laisser vide pour ne pas changer)</label><input class="input" id="m-c" name="code" type="password" minlength="6" autocomplete="new-password"></div>
  <p class="muted small" style="margin-bottom:12px">Rôle : ${ROLES[u.role]}</p><button class="btn" type="submit">Enregistrer</button></form>
  <div class="panel"><h2>Alertes de commandes</h2><p class="muted" style="margin-bottom:10px">Un son retentit à chaque nouvelle commande quand l'application est ouverte. Les notifications préviennent aussi quand elle est en arrière-plan.</p>${('Notification' in window)?(Notification.permission==='granted'?'<p><span class="st st-paid">Notifications activées</span></p>':Notification.permission==='denied'?'<p class="muted">Les notifications sont bloquées : autorisez-les dans les réglages du navigateur.</p>':'<button class="btn ghost" data-a="notifOn">Activer les notifications</button>'):'<p class="muted">Notifications non disponibles sur ce navigateur.</p>'}</div>
- <div class="panel"><h2>FAQ ${u.role==='admin'?'Administrateur':u.role==='gerant'?'Gérant':'Employé'}</h2>${faqHtml(u.role)}</div></div>`);
+ <div class="panel"><h2>FAQ — ${esc(roleLabel(u.role))}</h2>${faqHtml(u.role)}</div></div>`);
 }
 function pageLog(){
  return adminShell('activite','Activité de l\'équipe',`<div class="panel">${S.log.length?S.log.slice(0,120).map(l=>`<div class="logrow"><span class="muted">${esc(dshort(l.at))} à ${hm(l.at)}</span><strong>${esc(l.by)}</strong><span>${esc(l.text)}</span></div>`).join(''):'<div class="empty">Aucune activité enregistrée.</div>'}</div>`);
 }
-const GUARD={commandes:'commandes',cuisine:'commandes',plats:'menus',stocks:'stocks',credits:'credits',actualites:'actualites'};
+const GUARD={commandes:'commandes',caisse:'caisse',cuisine:'cuisine',service:'commandes',plats:'menus',stocks:'stocks',credits:'credits',actualites:'actualites'};
 function pageAdmin(sub){
  if(!staff())return pageAdminLogin();
- const p=sub||'';
- if(GUARD[p]&&!can(GUARD[p]))return adminShell('','Accès refusé',`<div class="empty">Votre compte n'a pas le droit d'ouvrir cette page. Demandez à l'Administrateur de vous l'accorder.</div>`);
+ let p=sub||'';
+ /* Accueil personnalisé selon le poste */
+ if(!p&&ROLE_HOME[staff().role])p=ROLE_HOME[staff().role];
+ if(p==='caisse'&&!canCaisse())return adminShell('','Accès refusé',`<div class="empty">Votre compte n'a pas accès à la caisse.</div>`);
+ if(p==='cuisine'&&!canCuisine())return adminShell('','Accès refusé',`<div class="empty">Votre compte n'a pas accès à la cuisine.</div>`);
+ if(GUARD[p]&&p!=='caisse'&&p!=='cuisine'&&!can(GUARD[p]))return adminShell('','Accès refusé',`<div class="empty">Votre compte n'a pas le droit d'ouvrir cette page. Demandez à l'Administrateur de vous l'accorder.</div>`);
  if((p==='equipe'||p==='activite')&&!isAdmin())return adminShell('','Accès refusé',`<div class="empty">Cette page est réservée à l'Administrateur.</div>`);
  if(p==='parametres'&&!(isAdmin()||staff().role==='gerant'))return adminShell('','Accès refusé',`<div class="empty">Cette page est réservée à l'Administrateur et au Gérant.</div>`);
- return ({'':pageDash,commandes:pageOrders,cuisine:pageKitchen,plats:pageDishes,stocks:pageStocks,credits:pageCredits,actualites:pageAdminNews,equipe:pageTeam,parametres:pageSettings,profil:pageProfile,activite:pageLog}[p]||pageDash)();
+ return ({'':pageDash,commandes:pageOrders,caisse:pageCaisse,cuisine:pageKitchen,service:pageService,plats:pageDishes,stocks:pageStocks,credits:pageCredits,actualites:pageAdminNews,equipe:pageTeam,parametres:pageSettings,profil:pageProfile,activite:pageLog}[p]||pageDash)();
+}
+
+
+/* ====================== caisse ====================== */
+let caisseUi={f:'due',q:''};
+function isLateOrder(o){
+  if(['ready','done','cancelled'].includes(o.status))return false;
+  if(o.pickupDate!==dkey(Date.now()))return false;
+  const [hh,mm]=String(o.pickupTime||'00:00').split(':').map(Number);
+  return (hh*60+(mm||0))<(new Date().getHours()*60+new Date().getMinutes());
+}
+function pageCaisse(){
+  const t0=startOfDay(Date.now());
+  const base=S.orders.filter(o=>o.at>=t0&&o.status!=='cancelled').sort((a,b)=>a.at-b.at);
+  const due=base.filter(o=>o.payStatus==='à payer');
+  const verif=base.filter(o=>o.payStatus==='à vérifier');
+  const late=base.filter(isLateOrder);
+  const paid=base.filter(o=>o.payStatus==='payé');
+  const q=(caisseUi.q||'').trim().toLowerCase();
+  let list=caisseUi.f==='due'?due:caisseUi.f==='verif'?verif:caisseUi.f==='late'?late:caisseUi.f==='paid'?paid:base;
+  if(q)list=list.filter(o=>(o.num+' '+o.name+' '+o.phone).toLowerCase().includes(q));
+  const totDue=due.reduce((a,o)=>a+(o.due||o.subtotal||0),0);
+  const card=o=>{
+    const late=isLateOrder(o);
+    return `<article class="ord ${o.status}">
+      <div class="ord-h"><strong>${esc(o.num)}</strong><span class="st st-${o.status}">${STATUS[o.status]}</span>${payBadge(o)}${late?'<span class="st st-cancelled">En retard</span>':''}<span class="muted small" style="margin-left:auto">${hmc(o.pickupTime)}</span></div>
+      <div><strong>${esc(o.name)}</strong> <span class="muted small">${esc(fmtPhone(o.phone))}</span></div>
+      <div class="muted small">${o.items.map(i=>i.qty+'× '+esc(i.name)).join(', ')}</div>
+      <div class="ord-f"><strong>${money(o.due!=null?o.due:o.subtotal)}</strong>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${o.payStatus==='à vérifier'||o.payStatus==='à payer'?`<button class="btn sm accent" data-a="markPaid" data-id="${o.id}">${o.payStatus==='à vérifier'?'Valider paiement':'Encaisser'}</button>`:''}
+          <button class="btn ghost sm" data-a="printTicket" data-id="${o.id}">Ticket</button>
+          <button class="btn ghost sm" data-a="orderOpen" data-id="${o.id}">Détails</button>
+        </div>
+      </div>
+    </article>`;
+  };
+  return adminShell('caisse','Caisse',`
+  <p class="muted" style="margin-bottom:14px">Poste <strong>caissier</strong> : encaisser, vérifier les paiements mobiles, imprimer les tickets. Le gérant, l'admin et un employé habilité peuvent aussi ouvrir cette page.</p>
+  <div class="kpis" style="margin-bottom:16px">
+    <div class="kpi ${due.length?'alert':''}"><span class="muted small">À encaisser</span><div class="v">${due.length}</div><span class="muted small">${money(totDue)}</span></div>
+    <div class="kpi ${verif.length?'alert':''}"><span class="muted small">À vérifier</span><div class="v">${verif.length}</div></div>
+    <div class="kpi ${late.length?'alert':''}"><span class="muted small">En retard</span><div class="v">${late.length}</div></div>
+    <div class="kpi"><span class="muted small">Payées aujourd'hui</span><div class="v">${paid.length}</div></div>
+  </div>
+  <div class="panel" style="margin-bottom:14px"><div class="sechead" style="margin-bottom:0">
+    <div class="seg">
+      <button data-a="caisseFilter" data-v="due" aria-pressed="${caisseUi.f==='due'}">À encaisser (${due.length})</button>
+      <button data-a="caisseFilter" data-v="verif" aria-pressed="${caisseUi.f==='verif'}">À vérifier (${verif.length})</button>
+      <button data-a="caisseFilter" data-v="late" aria-pressed="${caisseUi.f==='late'}">En retard (${late.length})</button>
+      <button data-a="caisseFilter" data-v="paid" aria-pressed="${caisseUi.f==='paid'}">Payées</button>
+      <button data-a="caisseFilter" data-v="all" aria-pressed="${caisseUi.f==='all'}">Toutes</button>
+    </div>
+    <input class="input" style="width:200px" type="search" placeholder="N°, nom…" data-i="caisseQ" value="${esc(caisseUi.q||'')}">
+  </div></div>
+  <div class="ords">${list.length?list.map(card).join(''):'<div class="empty">Aucune commande dans ce filtre.</div>'}</div>`);
+}
+
+/* ====================== service (serveur) ====================== */
+function pageService(){
+  const ready=S.orders.filter(o=>o.status==='ready').sort((a,b)=>(a.pickupDate+a.pickupTime).localeCompare(b.pickupDate+b.pickupTime));
+  const soon=S.orders.filter(o=>o.status==='prep').sort((a,b)=>(a.pickupDate+a.pickupTime).localeCompare(b.pickupDate+b.pickupTime));
+  const card=o=>`<article class="ord ${o.status}">
+    <div class="ord-h"><strong>${esc(o.num)}</strong><span class="st st-${o.status}">${STATUS[o.status]}</span><span class="muted small" style="margin-left:auto">Retrait ${hmc(o.pickupTime)}</span></div>
+    <div><strong>${esc(o.name)}</strong> <span class="muted small">${esc(fmtPhone(o.phone))}</span></div>
+    <div class="muted small">${o.items.map(i=>i.qty+'× '+esc(i.name)).join(', ')}</div>
+    ${o.payStatus==='à payer'?`<div class="small" style="margin-top:6px"><span class="st st-due">À encaisser : ${money(o.due)}</span></div>`:''}
+    <div class="ord-f"><div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${o.status==='ready'?`<button class="btn sm accent" data-a="advance" data-id="${o.id}">Remise au client</button>`:''}
+      <button class="btn ghost sm" data-a="orderOpen" data-id="${o.id}">Détails</button>
+    </div></div>
+  </article>`;
+  return adminShell('service','Service (salle)',`
+  <p class="muted" style="margin-bottom:14px">Poste <strong>serveur</strong> : appeler les clients dont la commande est prête et confirmer la remise. Si le paiement est en espèces, orientez vers la caisse.</p>
+  <div class="cols">
+    <div class="panel"><h2>Prêtes à remettre (${ready.length})</h2>
+      ${ready.length?`<div class="ords">${ready.map(card).join('')}</div>`:'<div class="empty">Aucune commande prête pour le moment.</div>'}
+    </div>
+    <div class="panel"><h2>Bientôt prêtes (${soon.length})</h2>
+      ${soon.length?`<div class="ords">${soon.slice(0,12).map(card).join('')}</div>`:'<div class="empty">Rien en préparation.</div>'}
+    </div>
+  </div>`);
 }
 
 /* ====================== mode cuisine : tableau plein écran pour la tablette ====================== */
@@ -980,19 +1106,6 @@ function render(){
  keepAwake();
  const path=r.p.join('/');if(path!==lastPath){window.scrollTo(0,0);lastPath=path}
 }
-async function notifyWhatsApp(order){
-  try{
-    const list=(S.settings.whatsapp||[]).filter(c=>c&&c.phone&&c.key&&c.on!==false);
-    if(!list.length)return;
-    const items=(order.items||[]).map(i=>`${i.qty}× ${i.name}`).join(', ');
-    const msg=`🍽️ Nouvelle commande ${order.num||''}\n${order.name||''} · ${fmtPhone(order.phone)||order.phone||''}\nRetrait ${order.pickupDate||''} à ${hmc(String(order.pickupTime||'').slice(0,5))}\n${items}\nTotal : ${money(order.due!=null?order.due:order.subtotal||0)}\n${order.methodLabel||order.method||''}`;
-    await Promise.allSettled(list.map(c=>{
-      const phone=String(c.phone).replace(/\D/g,'');
-      const url=`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(c.key)}`;
-      return fetch(url,{mode:'no-cors'}).catch(()=>{});
-    }));
-  }catch(e){}
-}
 function notifyNew(n){
  try{
   if(!document.hidden||!('Notification' in window)||Notification.permission!=='granted')return;
@@ -1038,21 +1151,8 @@ const ACT={
  installOff(){ls.set('cantine-install-off',String(Date.now()));render()},
  modalClose(){closeModal()},
  confirmOk(){const cb=confirmCb;confirmCb=null;closeModal();if(cb)cb()},
- waDel(el){
-  if(!need(isAdmin()))return;const i=+el.dataset.i,list=S.settings.whatsapp||[];
-  const c=list[i];if(!c)return;
-  askConfirm('Retirer l\'alerte WhatsApp de '+c.name+' ?','Retirer',()=>{
-   S.settings.whatsapp=list.filter((_,j)=>j!==i);if(!S.settings.legal)S.settings.legal={};S.settings.legal.whatsapp=S.settings.whatsapp;
-   logAct('A retiré l\'alerte WhatsApp de '+c.name);save();render();toast('Numéro retiré','ok');
-  },true);
- },
- add(el){
-  addToCart(el.dataset.id);cartChange();soundAdd();
-  el.classList.add('just-added');setTimeout(()=>el.classList.remove('just-added'),450);
-  const card=el.closest('.dcard,.mrow,li');if(card){card.classList.add('just-added');setTimeout(()=>card.classList.remove('just-added'),450)}
-  toast('Ajouté au panier ✓','ok');if(el.dataset.close)closeModal()
- },
- inc(el){addToCart(el.dataset.id);cartChange();soundAdd();el.classList.add('just-added');setTimeout(()=>el.classList.remove('just-added'),400)},
+ add(el){addToCart(el.dataset.id);cartChange();toast('Ajouté au panier','ok');if(el.dataset.close)closeModal()},
+ inc(el){addToCart(el.dataset.id);cartChange()},
  dec(el){const i=cart.items.find(x=>x.id===el.dataset.id);if(!i)return;i.qty--;if(i.qty<=0)cart.items=cart.items.filter(x=>x!==i);cartChange()},
  cartOpen(){drawerIsOpen=true;$('#drawer').innerHTML=drawerHtml();const b=$('#drawer .x');if(b)b.focus()},
  cartClose(){drawerIsOpen=false;$('#drawer').innerHTML=''},
@@ -1067,10 +1167,11 @@ const ACT={
  fillLogin(el){const l=$('#s-l'),c=$('#s-c');if(l)l.value=el.dataset.l;if(c)c.value=el.dataset.c},
  range(el){dashRange=el.dataset.v;render()},
  ofilter(el){oUi.f=el.dataset.v;render()},
+ caisseFilter(el){caisseUi.f=el.dataset.v||'due';render()},
  orderOpen(el){const o=S.orders.find(x=>x.id===el.dataset.id);if(o)orderModal(o)},
  advance(el){const o=S.orders.find(x=>x.id===el.dataset.id);if(!o||!need(can('commandes')))return;setStatus(o,NEXT[o.status][0]);render()},
  setStatus(el){const o=S.orders.find(x=>x.id===el.dataset.id);if(!o||!need(can('commandes')))return;setStatus(o,el.dataset.v);render();orderModal(o)},
- markPaid(el){const o=S.orders.find(x=>x.id===el.dataset.id);if(!o||!need(can('commandes')))return;o.payStatus='payé';logAct('Commande '+o.num+' : marquée payée');save();render();orderModal(o)},
+ markPaid(el){const o=S.orders.find(x=>x.id===el.dataset.id);if(!o||!need(canCaisse()||can('commandes')))return;o.payStatus='payé';logAct('Commande '+o.num+' : marquée payée');save();render();if((route().p[1]||'')!=='caisse')orderModal(o)},
  refundCredit(el){
   const o=S.orders.find(x=>x.id===el.dataset.id);if(!o||!need(can('credits')))return;
   let c=S.clients.find(x=>x.phone===o.phone);if(!c){c={id:'c'+uid(),name:o.name,phone:o.phone,pass:'',credit:0,history:[]};S.clients.push(c)}
@@ -1108,6 +1209,7 @@ document.addEventListener('click',e=>{
 const INP={
  menuQ(el){ui.q=el.value;$('#menulist').innerHTML=menuList()},
  orderQ(el){oUi.q=el.value;$('#orderlist').innerHTML=ordersList()},
+ caisseQ(el){caisseUi.q=el.value;render()},
  creditQ(el){creditQ=el.value;$('#creditrows').innerHTML=creditRows()}
 };
 document.addEventListener('input',e=>{const el=e.target.closest('[data-i]');if(el&&INP[el.dataset.i])INP[el.dataset.i](el)});
@@ -1118,15 +1220,10 @@ const CHG={
  orange(el){oUi.range=el.value;render()},
  dishActive(el){if(!need(can('menus'))){el.checked=!el.checked;return}const d=dish(el.dataset.id);d.active=el.checked;logAct((d.active?'A activé':'A désactivé')+' le plat « '+d.name+' »');save();render()},
  notifyEmail(el){if(!need(isAdmin())){el.checked=!el.checked;return}S.settings.notifyEmail=el.checked;logAct((el.checked?'A activé':'A désactivé')+' les e-mails aux clients');save();render()},
- waToggle(el){
-  if(!need(isAdmin())){el.checked=!el.checked;return}
-  const i=+el.dataset.i,list=S.settings.whatsapp||[];if(!list[i])return;
-  list[i].on=el.checked;if(!S.settings.legal)S.settings.legal={};S.settings.legal.whatsapp=list;save();render();
- },
  payToggle(el){if(!need(isAdmin())){el.checked=!el.checked;return}const p=payById(el.dataset.id);p.on=el.checked;logAct((p.on?'A activé':'A désactivé')+' le paiement '+p.label);save();render()},
  async photo(el){const f=el.files[0];if(!f)return;try{tmpPhoto=await readImage(f);const p=$('#photoPrev');if(p)p.innerHTML=`<img src="${tmpPhoto}" alt="Aperçu">`}catch(e){toast('Image illisible, essayez un autre fichier.','bad')}},
  async photoUser(el){const f=el.files[0];if(!f)return;try{tmpPhoto=await readImage(f,256);const p=$('#photoPrev');if(p){const w=p.style.width||'56px';p.outerHTML=`<img id="photoPrev" class="av" style="width:${w};height:${w}" src="${tmpPhoto}" alt="Aperçu">`}}catch(e){toast('Image illisible, essayez un autre fichier.','bad')}},
- roleSel(el){const b=$('#rightsBox');if(b)b.hidden=el.value!=='employe'}
+ roleSel(el){const b=$('#rightsBox');if(b)b.hidden=!['employe','caissier','serveur','cuisinier','assistant_cuisine'].includes(el.value)}
 };
 document.addEventListener('change',e=>{const el=e.target.closest('[data-c]');if(el&&CHG[el.dataset.c])CHG[el.dataset.c](el,e)});
 
@@ -1167,8 +1264,7 @@ const FORMS={
    payStatus:due===0?'payé':pm.kind==='cash'?'à payer':'payé',status:'new',clientId:c2?c2.id:null,note:String(fd.get('note')||'').trim(),history:[{s:'new',at:now,by:'Client'}]};
   if(credit>0&&c2)addCredit(c2,-credit,'Commande '+num,'Client');
   S.orders.push(o);save();cart.items=[];saveCart();ui.draft={};remember(num);
-  location.hash='#/suivi/'+num;render();soundOk();confetti();toast('Commande envoyée. Merci !','ok');
-  notifyWhatsApp(o);
+  location.hash='#/suivi/'+num;render();toast('Commande envoyée. Merci !','ok');
  },
  lookup(f){
   const fd=new FormData(f),num=String(fd.get('num')||'').trim().toUpperCase(),ph=normPhone(fd.get('phone'));
@@ -1245,7 +1341,7 @@ const FORMS={
   if(tmpPhoto!==undefined)u.photo=tmpPhoto;
   logAct((nw?'A créé':'A modifié')+' le compte de '+name);save();closeModal();render();toast('Compte enregistré','ok');
  },
- legal(f){if(!need(isAdmin()))return;const fd=new FormData(f),g=k=>String(fd.get(k)||'').trim(),r=g('retention');S.settings.legal={company:g('company'),form:g('form'),nif:g('nif'),rccm:g('rccm'),director:g('director'),host:g('host'),contact:g('contact'),retention:r?Math.max(1,Math.round(+r)):'',whatsapp:S.settings.whatsapp||[]};logAct('A modifié les informations légales');save();render();toast('Informations légales enregistrées','ok')},
+ legal(f){if(!need(isAdmin()))return;const fd=new FormData(f),g=k=>String(fd.get(k)||'').trim(),r=g('retention');S.settings.legal={company:g('company'),form:g('form'),nif:g('nif'),rccm:g('rccm'),director:g('director'),host:g('host'),contact:g('contact'),retention:r?Math.max(1,Math.round(+r)):''};logAct('A modifié les informations légales');save();render();toast('Informations légales enregistrées','ok')},
  identity(f){if(!need(isAdmin()))return;const fd=new FormData(f);S.settings.name=String(fd.get('name')).trim()||S.settings.name;S.settings.tagline=String(fd.get('tagline')||'').trim();logAct('A modifié l\'identité de la cantine');save();render();toast('Identité enregistrée','ok')},
  contact(f){if(!need(isAdmin()||staff().role==='gerant'))return;const fd=new FormData(f);Object.assign(S.settings,{address:String(fd.get('address')).trim(),phone:String(fd.get('phone')).trim(),email:String(fd.get('email')||'').trim()});logAct('A modifié les coordonnées');save();render();toast('Coordonnées enregistrées','ok')},
  hours(f){
@@ -1254,15 +1350,6 @@ const FORMS={
   S.settings.hours=h;S.settings.prepMin=Math.max(5,+fd.get('prep')||20);S.settings.slot=+fd.get('slot')||15;S.settings.slotCap=Math.max(0,Math.min(200,Math.round(+fd.get('cap')||0)));logAct('A modifié les horaires');save();render();toast('Horaires enregistrés','ok');
  },
  payAdd(f){if(!need(isAdmin()))return;const l=String(new FormData(f).get('label')||'').trim();if(!l)return;S.settings.payments.push({id:'p'+uid(),label:l,kind:'momo',on:true,hint:'Paiement mobile'});logAct('A ajouté le moyen de paiement '+l);save();render()},
- waAdd(f){
-  if(!need(isAdmin()))return;
-  const fd=new FormData(f),name=String(fd.get('name')||'').trim(),phone=String(fd.get('phone')||'').replace(/\D/g,''),key=String(fd.get('key')||'').trim();
-  if(!name||phone.length<8||!key)return toast('Indiquez un nom, un numéro international et la clé CallMeBot.','bad');
-  if(!S.settings.whatsapp)S.settings.whatsapp=[];
-  S.settings.whatsapp.push({name,phone,key,on:true});
-  if(!S.settings.legal)S.settings.legal={};S.settings.legal.whatsapp=S.settings.whatsapp;
-  logAct('A ajouté l\'alerte WhatsApp pour '+name);save();render();toast('Numéro WhatsApp ajouté','ok');
- },
  profile(f){
   const u=staff(),fd=new FormData(f),name=String(fd.get('name')||'').trim(),code=String(fd.get('code')||'');
   if(!name)return;if(code&&code.length<6){toast('Le code doit contenir au moins 6 caractères.','bad');return}
@@ -1280,46 +1367,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(modalOpen()&&!$(
 let audioCtx=null;
 function unlockAudio(){try{const A=window.AudioContext||window.webkitAudioContext;if(!audioCtx&&A)audioCtx=new A();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume()}catch(e){}}
 document.addEventListener('click',unlockAudio);document.addEventListener('touchstart',unlockAudio,{passive:true});
-function tone(freq,start,dur,type,vol){
- try{unlockAudio();const c=audioCtx;if(!c||c.state!=='running')return;
-  const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=freq;
-  g.gain.setValueAtTime(0,c.currentTime+start);g.gain.linearRampToValueAtTime(vol||.09,c.currentTime+start+.02);
-  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+start+dur);o.connect(g);g.connect(c.destination);
-  o.start(c.currentTime+start);o.stop(c.currentTime+start+dur+.02)}catch(e){}
-}
-function beep(){tone(880,0,.22,'sine',.1);tone(1174,0.12,.18,'sine',.07)}
-function soundOk(){tone(523,0,.12,'sine',.08);tone(659,.1,.12,'sine',.09);tone(784,.2,.28,'triangle',.1)}
-function soundAdd(){tone(660,0,.08,'sine',.06);tone(880,.06,.1,'sine',.05)}
-function soundWarn(){tone(320,0,.15,'square',.05);tone(280,.12,.2,'square',.04)}
-function confetti(opts={}){
- const n=opts.n||90,colors=opts.colors||['#F28C1B','#3A7650','#E9A92B','#C2255C','#1C7ED6','#fff','#F4E9C8'];
- const c=document.createElement('canvas');c.setAttribute('aria-hidden','true');
- Object.assign(c.style,{position:'fixed',inset:'0',width:'100%',height:'100%',pointerEvents:'none',zIndex:'400'});
- document.body.appendChild(c);const ctx=c.getContext('2d');
- const dpr=Math.min(window.devicePixelRatio||1,2);let W,H;
- const resize=()=>{W=window.innerWidth;H=window.innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)};
- resize();
- const parts=Array.from({length:n},()=>({
-  x:W*.3+Math.random()*W*.4,y:H*.15+Math.random()*H*.15,
-  vx:(Math.random()-.5)*9,vy:-(6+Math.random()*10),g:.22+Math.random()*.18,
-  w:6+Math.random()*8,h:8+Math.random()*10,rot:Math.random()*Math.PI,rv:(Math.random()-.5)*.25,
-  color:colors[Math.floor(Math.random()*colors.length)],life:1,shape:Math.random()>.4?'rect':'circle'
- }));
- let start=performance.now();
- function frame(t){
-  const dt=Math.min(32,(t-start))/16;start=t;ctx.clearRect(0,0,W,H);let alive=false;
-  for(const p of parts){
-   if(p.life<=0)continue;alive=true;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.rv*dt;p.life-=.008*dt;p.vx*=.995;
-   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;
-   if(p.shape==='circle'){ctx.beginPath();ctx.arc(0,0,p.w*.5,0,Math.PI*2);ctx.fill()}
-   else{ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h)}
-   ctx.restore();
-  }
-  if(alive)requestAnimationFrame(frame);else c.remove();
- }
- requestAnimationFrame(frame);
- setTimeout(()=>{try{c.remove()}catch(e){}},4500);
-}
+function beep(){try{unlockAudio();const c=audioCtx;if(!c||c.state!=='running')return;const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(c.currentTime+.25)}catch(e){}}
 /* écran de cuisine : empêche la mise en veille tant que l'espace équipe est ouvert */
 let wakeLock=null;
 async function keepAwake(){try{if(staff()&&'wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}}catch(e){}}
@@ -1328,7 +1376,7 @@ window.addEventListener('storage',e=>{
  if(e.key===KEY&&e.newValue){
   const before=S.orders.length;let n;try{n=JSON.parse(e.newValue)}catch(x){return}
   S=n;const added=S.orders.length-before;
-  if(added>0&&staff()){toast(added>1?added+' nouvelles commandes':'Nouvelle commande reçue','ok');beep();notifyNew(added);S.orders.slice(-added).forEach(o=>notifyWhatsApp(o))}
+  if(added>0&&staff()){toast(added>1?added+' nouvelles commandes':'Nouvelle commande reçue','ok');beep();notifyNew(added)}
   if(!modalOpen()&&!isTyping())render();
  }
  if(e.key==='cantine-cart'){try{const c=JSON.parse(e.newValue||'{"items":[]}');if(c&&Array.isArray(c.items))cart=c;refreshDrawer()}catch(x){}}

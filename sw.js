@@ -1,7 +1,7 @@
 // Service worker : permet l'installation de l'application et garde une copie du site pour les coupures de réseau.
 // Stratégie : le réseau d'abord (vous avez toujours la dernière version), la copie enregistrée en secours.
 // Les données (Supabase) et les bibliothèques externes ne sont jamais mises en cache ici.
-const VERSION = 'cq-v5';
+const VERSION = 'cq-v3';
 const SHELL = ['./', 'index.html', 'app.js', 'api.js', 'backend.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

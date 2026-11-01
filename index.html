@@ -114,11 +114,9 @@ footer.site ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 section.block{padding-top:56px}
 .sechead{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:22px;flex-wrap:wrap}
 .steps ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.steps li{display:flex;gap:14px;align-items:flex-start;transition:transform .2s}
-.steps li:hover{transform:translateY(-3px)}
-.steps b{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--primary);color:var(--on-primary);font-family:var(--font-d);font-size:1.1rem;box-shadow:0 6px 16px -6px color-mix(in srgb,var(--primary) 55%,transparent);transition:transform .2s,box-shadow .2s}
-.steps li:hover b{transform:scale(1.08);box-shadow:0 10px 22px -6px color-mix(in srgb,var(--primary) 65%,transparent)}
-.steps strong{display:block;margin-bottom:2px}
+.steps li{display:flex;gap:14px;align-items:flex-start}
+.steps b{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--primary);color:var(--on-primary);font-family:var(--font-d)}
+.steps strong{display:block}
 .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
 .dcard{background:var(--surface);border:1px solid var(--line);border-radius:20px 20px 12px 12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
 .dcard .vis{aspect-ratio:4/3}
@@ -126,7 +124,7 @@ section.block{padding-top:56px}
 .dcard .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding-top:8px}
 .vis{background:var(--soft);overflow:hidden;position:relative}
 .vis svg,.vis img{width:100%;height:100%;object-fit:cover;display:block}
-.tag{position:absolute;left:10px;top:10px;background:var(--accent);color:var(--on-accent);font-size:.78rem;font-weight:750;padding:3px 10px;border-radius:999px;box-shadow:0 4px 12px -4px color-mix(in srgb,var(--accent) 60%,transparent);animation:softPop .5s .2s both;z-index:1}
+.tag{position:absolute;left:10px;top:10px;background:var(--accent);color:var(--on-accent);font-size:.78rem;font-weight:750;padding:3px 10px;border-radius:999px}
 .price{font-weight:750;font-family:var(--font-d);font-size:1.08rem;white-space:nowrap}
 .news{display:grid;gap:14px}
 .newsitem{display:grid;grid-template-columns:120px 1fr;gap:18px;padding:16px 0;border-top:1px solid var(--line)}
@@ -379,155 +377,6 @@ section.block h2{letter-spacing:-.02em}
   .hero h1{font-size:clamp(2.6rem,13vw,3.4rem)}
   .amain{padding-top:18px}
 }
-
-/* ===== plus vivant : animations & micro-interactions ===== */
-@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes softPop{0%{transform:scale(.92);opacity:0}60%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}
-@keyframes gentleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}50%{box-shadow:0 0 0 10px transparent}}
-@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-@keyframes stampIn{0%{transform:scale(1.4) rotate(-8deg);opacity:0}70%{transform:scale(.96) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
-@keyframes bounceSoft{0%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}70%{transform:translateY(-2px)}}
-@keyframes statusPulse{0%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.55}100%{transform:scale(1);opacity:1}}
-@keyframes cardReveal{from{opacity:0;transform:translateY(22px) scale(.97)}to{opacity:1;transform:none}}
-@keyframes toastIn{from{transform:translateY(16px) scale(.95);opacity:0}to{transform:none;opacity:1}}
-@keyframes drawerSlide{from{transform:translateX(100%)}to{transform:none}}
-@keyframes modalIn{from{transform:scale(.94) translateY(12px);opacity:0}to{transform:none;opacity:1}}
-@keyframes overlayIn{from{opacity:0}to{opacity:1}}
-@keyframes countPop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
-@keyframes boardPulse{0%,100%{box-shadow:0 2px 0 rgba(0,0,0,.18),0 24px 44px -22px rgba(20,30,20,.55)}50%{box-shadow:0 2px 0 rgba(0,0,0,.18),0 28px 52px -18px rgba(20,30,20,.65)}}
-@keyframes readyFlash{0%,100%{background:var(--ok)}50%{background:color-mix(in srgb,var(--ok) 70%,#fff)}}
-
-.alive-in{animation:fadeUp .55s cubic-bezier(.22,1,.36,1) both}
-.alive-in-d1{animation-delay:.06s}
-.alive-in-d2{animation-delay:.12s}
-.alive-in-d3{animation-delay:.18s}
-.alive-in-d4{animation-delay:.24s}
-
-.hero .status{animation:fadeUp .5s both}
-.hero h1{animation:fadeUp .55s .05s both}
-.hero .lead{animation:fadeUp .55s .1s both}
-.hero .actions{animation:fadeUp .55s .15s both}
-.hero .paynote{animation:fadeUp .55s .2s both}
-.hero .board{animation:softPop .6s .18s both}
-
-.status.on i{animation:statusPulse 2s ease-in-out infinite}
-.status.on{background:color-mix(in srgb,var(--ok) 18%,var(--soft))}
-
-.btn{transition:transform .15s cubic-bezier(.22,1,.36,1),background .15s,box-shadow .2s,filter .15s}
-.btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px -8px color-mix(in srgb,var(--primary) 55%,transparent)}
-.btn:active{transform:scale(.96) translateY(0)}
-.btn.accent:hover{box-shadow:0 8px 22px -8px color-mix(in srgb,var(--accent) 60%,transparent)}
-.btn.lg:hover{transform:translateY(-3px)}
-.plus{transition:transform .15s,filter .15s,box-shadow .2s}
-.plus:hover{transform:scale(1.12);filter:brightness(.95);box-shadow:0 6px 16px -6px color-mix(in srgb,var(--accent) 70%,transparent)}
-.plus:active{transform:scale(.92)}
-
-.dcard{transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s,border-color .2s}
-.dcard:hover{transform:translateY(-6px);box-shadow:0 16px 36px -16px rgba(20,30,20,.28)}
-.dcard .vis{transition:transform .4s cubic-bezier(.22,1,.36,1)}
-.dcard:hover .vis{transform:scale(1.04)}
-.dcard .vis img,.dcard .vis svg{transition:transform .45s cubic-bezier(.22,1,.36,1)}
-.dcard:hover .vis img,.dcard:hover .vis svg{transform:scale(1.06)}
-
-.mrow{transition:background .2s}
-.mrow:hover{background:color-mix(in srgb,var(--soft) 55%,transparent);border-radius:14px;margin-left:-8px;margin-right:-8px;padding-left:8px;padding-right:8px}
-.mrow .thumb{transition:transform .25s}
-.mrow:hover .thumb{transform:scale(1.06)}
-
-.board{animation:boardPulse 5s ease-in-out infinite;transition:transform .3s}
-.board:hover{transform:translateY(-2px)}
-.board li{transition:transform .15s,background .15s;border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px}
-.board li:hover{background:rgba(255,255,255,.06);transform:translateX(3px)}
-.board li:hover .p{transform:scale(1.05)}
-.board .p{transition:color .15s,transform .15s}
-
-.ord{transition:transform .2s,box-shadow .2s,border-color .2s}
-.ord:hover{transform:translateY(-3px);box-shadow:0 12px 28px -14px rgba(20,30,20,.25)}
-.ord.new{animation:pulseGlow 2.2s ease-in-out infinite}
-
-.kc-card{transition:transform .2s,box-shadow .2s,outline .2s}
-.kc-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px -10px rgba(0,0,0,.4)}
-.kc-card.late{animation:readyFlash 1.4s ease-in-out infinite}
-.k-ready .kc-card{animation:pulseGlow 2.4s ease-in-out infinite}
-
-.count{animation:countPop .4s cubic-bezier(.22,1,.36,1)}
-.toast{animation:toastIn .28s cubic-bezier(.22,1,.36,1)}
-
-#modal .overlay{animation:overlayIn .22s ease}
-#modal .dlg{animation:modalIn .32s cubic-bezier(.22,1,.36,1)}
-#drawer .overlay{animation:overlayIn .2s ease}
-#drawer aside{animation:drawerSlide .3s cubic-bezier(.22,1,.36,1)}
-
-.chip{transition:transform .15s,background .15s,border-color .15s,color .15s}
-.chip:hover{transform:translateY(-1px)}
-.chip[aria-pressed=true]{box-shadow:0 4px 12px -4px color-mix(in srgb,var(--primary) 45%,transparent)}
-
-.stepper button{transition:background .15s,transform .12s}
-.stepper button:active{transform:scale(.88)}
-
-.kpi{transition:transform .2s,box-shadow .2s}
-.kpi:hover{transform:translateY(-3px);box-shadow:0 12px 28px -14px rgba(20,30,20,.18)}
-.kpi.alert{animation:pulseGlow 2.5s ease-in-out infinite}
-
-.theme{transition:transform .2s,box-shadow .2s,border-color .2s}
-.theme:hover{transform:translateY(-3px)}
-.theme[aria-pressed=true]{animation:softPop .35s both}
-
-.newsitem{transition:transform .2s,background .2s;border-radius:12px;padding-left:8px;padding-right:8px;margin:0 -8px}
-.newsitem:hover{background:color-mix(in srgb,var(--soft) 40%,transparent);transform:translateX(4px)}
-
-.payopt{transition:transform .15s,box-shadow .2s,border-color .15s}
-.payopt:hover{transform:translateY(-1px)}
-.payopt:has(input:checked){animation:softPop .3s both}
-
-.track li.now::before{animation:pulseGlow 1.8s ease-in-out infinite}
-
-.cartpill{transition:transform .2s,box-shadow .2s;animation:fadeUp .4s both}
-.cartpill:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px color-mix(in srgb,var(--accent) 55%,transparent)}
-.cartpill:active{transform:scale(.98)}
-
-.hero::before{animation:gentleFloat 8s ease-in-out infinite}
-.brand svg{transition:transform .3s}
-.brand:hover svg{transform:scale(1.08) rotate(-4deg)}
-
-.grid .dcard{animation:cardReveal .5s cubic-bezier(.22,1,.36,1) both}
-.grid .dcard:nth-child(1){animation-delay:.04s}
-.grid .dcard:nth-child(2){animation-delay:.08s}
-.grid .dcard:nth-child(3){animation-delay:.12s}
-.grid .dcard:nth-child(4){animation-delay:.16s}
-.grid .dcard:nth-child(5){animation-delay:.2s}
-.grid .dcard:nth-child(6){animation-delay:.24s}
-.grid .dcard:nth-child(7){animation-delay:.28s}
-.grid .dcard:nth-child(8){animation-delay:.32s}
-
-.ords .ord{animation:fadeUp .4s cubic-bezier(.22,1,.36,1) both}
-.ords .ord:nth-child(1){animation-delay:.03s}
-.ords .ord:nth-child(2){animation-delay:.06s}
-.ords .ord:nth-child(3){animation-delay:.09s}
-.ords .ord:nth-child(4){animation-delay:.12s}
-.ords .ord:nth-child(5){animation-delay:.15s}
-
-.kcol .kc-card{animation:fadeUp .4s cubic-bezier(.22,1,.36,1) both}
-.kcol .kc-card:nth-child(1){animation-delay:.04s}
-.kcol .kc-card:nth-child(2){animation-delay:.08s}
-.kcol .kc-card:nth-child(3){animation-delay:.12s}
-
-.just-added{animation:bounceSoft .45s cubic-bezier(.22,1,.36,1)}
-.plus.just-added{animation:countPop .4s cubic-bezier(.22,1,.36,1)}
-
-.shimmer{background:linear-gradient(90deg,var(--soft) 25%,color-mix(in srgb,var(--soft) 60%,#fff) 50%,var(--soft) 75%);background-size:200% 100%;animation:shimmer 1.4s linear infinite;border-radius:12px}
-
-#main > *{animation:fadeIn .28s ease}
-
-@media (prefers-reduced-motion:reduce){
-  .alive-in,.hero .status,.hero h1,.hero .lead,.hero .actions,.hero .paynote,.hero .board,
-  .grid .dcard,.ords .ord,.kcol .kc-card,#main > *,.cartpill,.toast,#modal .dlg,#drawer aside{animation:none!important}
-  .dcard:hover,.ord:hover,.kpi:hover,.theme:hover,.board:hover,.mrow:hover{transform:none}
-  .status.on i,.ord.new,.kc-card.late,.k-ready .kc-card,.kpi.alert,.track li.now::before,.board{animation:none!important}
-}
-
 </style>
 </head>
 <body>

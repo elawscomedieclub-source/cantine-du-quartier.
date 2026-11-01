@@ -55,8 +55,10 @@
       one(sb.from('menu_du_jour').select('*').eq('id', 1).single()),
       q(sb.from('news').select('*').order('created_at', { ascending: false })),
     ]);
+    const legal = st.legal || {};
     N.settings = { name: st.name, tagline: st.tagline, address: st.address, phone: st.phone, email: st.email || '', style: st.style,
-      hours: st.hours || {}, legal: st.legal || {}, prepMin: st.prep_min, slot: st.slot_min, slotCap: st.slot_capacity || 0, notifyEmail: !!st.notify_email,
+      hours: st.hours || {}, legal: legal, prepMin: st.prep_min, slot: st.slot_min, slotCap: st.slot_capacity || 0, notifyEmail: !!st.notify_email,
+      whatsapp: Array.isArray(legal.whatsapp) ? legal.whatsapp : (Array.isArray(st.whatsapp) ? st.whatsapp : []),
       payments: pm.filter((p) => p.id !== 'credit').map((p) => ({ id: p.id, label: p.label, kind: p.kind, hint: p.hint || '', details: p.details || {}, on: p.enabled })) };
     N.dishes = di.map(mapDish);
     N.menuDuJour = { items: md.dish_ids || [], formulePrice: md.formule_price };
@@ -211,6 +213,15 @@
     userDelete(el) { const u = S.users.find((x) => x.id === el.dataset.id); if (!u || u.role === 'admin' || u.id === staff().id) return; askConfirm('Supprimer le compte de ' + u.name + ' ?', 'Supprimer', () => run(() => API.adminUsers({ action: 'delete', id: u.id }), { close: true }), true); },
     async style(el) { if (need(isAdmin())) run(() => API.saveIdentityAndStyle({ style: el.dataset.v })); },
     resetDemo() { toast('Non disponible en mode production.', 'bad'); },
+    waDel(el) {
+      if (!need(isAdmin())) return; const i = +el.dataset.i, list = [...(S.settings.whatsapp || [])];
+      const c = list[i]; if (!c) return;
+      askConfirm('Retirer l\'alerte WhatsApp de ' + c.name + ' ?', 'Retirer', () => {
+        list.splice(i, 1);
+        const legal = { ...(S.settings.legal || {}), whatsapp: list };
+        run(() => API.saveIdentityAndStyle({ legal }), { ok: 'Numéro retiré' });
+      }, true);
+    },
     async payNow(el) {
       try { toast('Ouverture du paiement…'); location.href = await API.startPayment(el.dataset.id, phoneFor(el.dataset.id)); }
       catch (e) { toast(fr(e), 'bad'); }
@@ -228,6 +239,13 @@
     async dishActive(el) { if (!need(can('menus'))) { el.checked = !el.checked; return; } run(() => API.saveDish({ id: el.dataset.id, active: el.checked })); },
     async notifyEmail(el) { if (!need(isAdmin())) { el.checked = !el.checked; return; } run(() => API.saveIdentityAndStyle({ notify_email: el.checked })); },
     async payToggle(el) { if (!need(isAdmin())) { el.checked = !el.checked; return; } run(() => API.togglePayment(el.dataset.id, el.checked)); },
+    async waToggle(el) {
+      if (!need(isAdmin())) { el.checked = !el.checked; return; }
+      const i = +el.dataset.i, list = [...(S.settings.whatsapp || [])]; if (!list[i]) return;
+      list[i] = { ...list[i], on: el.checked };
+      const legal = { ...(S.settings.legal || {}), whatsapp: list };
+      run(() => API.saveIdentityAndStyle({ legal }));
+    },
   });
 
   Object.assign(FORMS, {
@@ -251,14 +269,22 @@
       try {
         const res = await API.placeOrder({ name, phone, date: op.key, time: time + ':00', items: cart.items.map((i) => ({ id: i.id, qty: i.qty })),
           method: pm.id, note: String(fd.get('note') || '').trim(), useCredit: !!fd.get('useCredit'), reference: String(fd.get('ref') || ''), email });
+        const waItems = cartLines().map((l) => ({ qty: l.qty, name: l.name }));
         rememberOrder(res.num, phone); cart.items = []; saveCart(); ui.draft = {};
+        try {
+          notifyWhatsApp({
+            num: res.num, name, phone, pickupDate: op.key, pickupTime: time,
+            items: waItems, due: res.due, subtotal: res.due, methodLabel: (payById(pm.id) || {}).label || pm.id,
+          });
+        } catch (e) {}
         if (res.status === 'awaiting') {
           openModal(`<div class="center" style="padding:10px"><div class="spin"></div><h2 style="margin-bottom:8px">Redirection vers le paiement</h2><p class="muted">Vous allez régler ${money(res.due)} sur la page sécurisée du prestataire.</p></div>`, { lock: true, nofocus: true, label: 'Redirection vers le paiement' });
           try { location.href = await API.startPayment(res.num, phone); return; }
           catch (e) { closeModal(); toast('Paiement indisponible pour le moment. Réessayez depuis la page de suivi.', 'bad'); }
         }
         await refresh(); location.hash = '#/suivi/' + res.num; render();
-        if (res.status !== 'awaiting') toast('Commande envoyée. Merci !', 'ok');
+        if (res.status !== 'awaiting') { soundOk(); confetti(); toast('Commande envoyée. Merci !', 'ok'); }
+        else { soundOk(); }
       } catch (e) { if (btn) { btn.disabled = false; btn.textContent = payBtnLabel(); } fail(fr(e)); }
     },
     async lookup(f) {
@@ -346,7 +372,17 @@
     },
     async legal(f) {
       if (!need(isAdmin())) return; const fd = new FormData(f), g = (k) => String(fd.get(k) || '').trim(), r = g('retention');
-      run(() => API.saveIdentityAndStyle({ legal: { company: g('company'), form: g('form'), nif: g('nif'), rccm: g('rccm'), director: g('director'), host: g('host'), contact: g('contact'), retention: r ? Math.max(1, Math.round(+r)) : '' } }), { ok: 'Informations légales enregistrées' });
+      const wa = (S.settings.whatsapp || (S.settings.legal && S.settings.legal.whatsapp) || []);
+      run(() => API.saveIdentityAndStyle({ legal: { company: g('company'), form: g('form'), nif: g('nif'), rccm: g('rccm'), director: g('director'), host: g('host'), contact: g('contact'), retention: r ? Math.max(1, Math.round(+r)) : '', whatsapp: wa } }), { ok: 'Informations légales enregistrées' });
+    },
+    async waAdd(f) {
+      if (!need(isAdmin())) return;
+      const fd = new FormData(f), name = String(fd.get('name') || '').trim(), phone = String(fd.get('phone') || '').replace(/\D/g, ''), key = String(fd.get('key') || '').trim();
+      if (!name || phone.length < 8 || !key) return toast('Indiquez un nom, un numéro international et la clé CallMeBot.', 'bad');
+      const list = [...(S.settings.whatsapp || [])];
+      list.push({ name, phone, key, on: true });
+      const legal = { ...(S.settings.legal || {}), whatsapp: list };
+      await run(() => API.saveIdentityAndStyle({ legal }), { ok: 'Numéro WhatsApp ajouté' });
     },
     async identity(f) { if (!need(isAdmin())) return; const fd = new FormData(f); run(() => API.saveIdentityAndStyle({ name: String(fd.get('name')).trim(), tagline: String(fd.get('tagline') || '').trim() }), { ok: 'Identité enregistrée' }); },
     async contact(f) {

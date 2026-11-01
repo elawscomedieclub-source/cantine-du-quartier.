@@ -336,19 +336,19 @@ function pageHome(){
    <span class="status ${oi.open?'on':''}"><i></i>${esc(oi.text)}</span>
    <h1>${esc(s.name)}</h1>
    <p class="lead">${esc(s.tagline)}</p>
-   <div class="actions"><a class="btn accent lg" href="#/menu">Commander</a><a class="btn ghost lg" href="${mapsUrl()}" target="_blank" rel="noopener">Itinéraire</a></div>
+   <div class="actions"><a class="btn accent lg" href="#/menu">Commander maintenant</a><a class="btn ghost lg" href="${mapsUrl()}" target="_blank" rel="noopener">Itinéraire</a></div>
    <p class="paynote">Paiement par ${pays().map(p=>esc(p.label)).join(', ')||'espèces'}. Aucun compte nécessaire.</p>
   </div>
   ${board()}
  </section>
- <section class="wrap block steps"><h2 style="margin-bottom:20px">Commander en trois étapes</h2><ol>
-  <li><b>1</b><div><strong>Choisissez vos plats</strong><span class="muted">Parcourez la carte et remplissez votre panier.</span></div></li>
-  <li><b>2</b><div><strong>Réglez en ligne ou au retrait</strong><span class="muted">Mobile money, carte ou espèces à la caisse.</span></div></li>
-  <li><b>3</b><div><strong>Récupérez à l'heure choisie</strong><span class="muted">Votre repas est prêt, sans file d'attente.</span></div></li>
+ <section class="wrap block steps alive-in"><h2 style="margin-bottom:20px">Commander en trois étapes</h2><ol>
+  <li class="alive-in alive-in-d1"><b>1</b><div><strong>Choisissez vos plats</strong><span class="muted">Parcourez la carte et remplissez votre panier en quelques taps.</span></div></li>
+  <li class="alive-in alive-in-d2"><b>2</b><div><strong>Réglez en ligne ou au retrait</strong><span class="muted">Mobile money, carte ou espèces à la caisse — simple et rapide.</span></div></li>
+  <li class="alive-in alive-in-d3"><b>3</b><div><strong>Récupérez à l'heure choisie</strong><span class="muted">Votre repas est prêt à l'heure, sans file d'attente.</span></div></li>
  </ol></section>
- ${sug.length?`<section class="wrap block"><div class="sechead"><h2>À ne pas manquer</h2><a href="#/menu">Voir toute la carte</a></div><div class="grid snap">${sug.map(dcard).join('')}</div></section>`:''}
- ${news.length?`<section class="wrap block"><div class="sechead"><h2>Actualités</h2><a href="#/actualites">Toutes les actualités</a></div><div class="news">${news.map(newsItem).join('')}</div></section>`:''}
- <section class="wrap block"><div class="loc">
+ ${sug.length?`<section class="wrap block alive-in alive-in-d2"><div class="sechead"><h2>À ne pas manquer</h2><a href="#/menu">Voir toute la carte →</a></div><div class="grid snap">${sug.map(dcard).join('')}</div></section>`:''}
+ ${news.length?`<section class="wrap block alive-in alive-in-d3"><div class="sechead"><h2>Actualités</h2><a href="#/actualites">Toutes les actualités →</a></div><div class="news">${news.map(newsItem).join('')}</div></section>`:''}
+ <section class="wrap block alive-in alive-in-d4"><div class="loc">
   <div><h2>Venir à la cantine</h2><p class="muted" style="margin-top:10px">${esc(s.address)}</p>${hoursList()}
    <div class="actions"><a class="btn" href="${mapsUrl()}" target="_blank" rel="noopener">Y aller</a><a class="btn ghost" href="tel:${esc(s.phone.replace(/\s/g,''))}">Appeler</a></div></div>
   <div class="mapbox">${mapArt()}</div>
@@ -873,11 +873,27 @@ function pageSettings(){
  <button class="btn" type="submit">Enregistrer</button></form>`:'';
  const look=ad?`<div class="panel"><h2>Apparence</h2><div class="themes">${STYLES.map(t=>`<button class="theme" data-a="style" data-v="${t.id}" aria-pressed="${s.style===t.id}"><span class="sw">${t.sw.map(c=>`<i style="background:${c}"></i>`).join('')}</span><strong>${t.name}</strong><span class="muted small">${t.desc}</span></button>`).join('')}</div></div>`:'';
  const notif=ad?`<div class="panel"><h2>Notifications par e-mail</h2><div class="cl"><div class="nm"><strong>Prévenir les clients par e-mail</strong><small>Commande reçue, prête, annulée</small></div><span class="switch"><input type="checkbox" role="switch" aria-label="Activer les e-mails aux clients" data-c="notifyEmail" ${s.notifyEmail?'checked':''}></span></div><p class="hint" style="margin-top:10px">À activer seulement après avoir configuré l'envoi (guide EMAIL.md). Le champ e-mail apparaît alors à la commande.</p></div>`:'';
+ const waList=s.whatsapp||[];
+ const wa=ad?`<div class="panel"><h2>Alertes WhatsApp (équipe)</h2>
+ <p class="muted" style="margin-bottom:12px">À chaque nouvelle commande, un message WhatsApp est envoyé aux numéros configurés (service gratuit CallMeBot).</p>
+ <ol class="muted small" style="margin:0 0 14px 18px;padding:0;line-height:1.55">
+  <li>Sur le téléphone de la personne, ouvrez WhatsApp et écrivez <strong>I allow callmebot to send me messages</strong> au numéro <strong>+34 644 66 78 42</strong>.</li>
+  <li>CallMeBot répond avec une <strong>clé API</strong> (apikey).</li>
+  <li>Ajoutez ci-dessous le numéro international (ex. 22890123456) et cette clé.</li>
+ </ol>
+ ${waList.length?`<div style="margin-bottom:12px">${waList.map((c,i)=>`<div class="cl"><div class="nm"><strong>${esc(c.name||c.phone)}</strong><small>${esc(c.phone)} · clé ${esc(String(c.key||'').slice(0,4))}…</small></div>
+  <span class="switch"><input type="checkbox" role="switch" aria-label="Activer ${esc(c.name||c.phone)}" data-c="waToggle" data-i="${i}" ${c.on!==false?'checked':''}></span>
+  <button class="btn ghost sm" data-a="waDel" data-i="${i}" type="button">Retirer</button></div>`).join('')}</div>`:'<p class="muted small" style="margin-bottom:12px">Aucun numéro pour l\'instant.</p>'}
+ <form data-form="waAdd"><div class="row"><div class="field"><label for="wa-n">Prénom ou poste</label><input class="input" id="wa-n" name="name" placeholder="Ex. Cuisine, Ama" required></div>
+ <div class="field"><label for="wa-p">Numéro WhatsApp (avec indicatif)</label><input class="input" id="wa-p" name="phone" placeholder="22890123456" required></div></div>
+ <div class="field"><label for="wa-k">Clé API CallMeBot</label><input class="input" id="wa-k" name="key" placeholder="123456" required></div>
+ <button class="btn" type="submit">Ajouter ce numéro</button></form>
+ <p class="hint" style="margin-top:12px">Le message contient le n° de commande, le client, l'heure de retrait et le total. Fonctionne même si l'espace équipe est fermé.</p></div>`:'';
  const pay=ad?`<div class="panel"><h2>Moyens de paiement</h2>${s.payments.map(p=>`<div class="cl"><div class="nm"><strong>${esc(p.label)}</strong><small>${p.kind==='momo'?'Mobile money':p.kind==='card'?'Carte bancaire':p.kind==='manual'?'Compte marchand (vérification par l\'équipe)':'Paiement au retrait'}</small></div><span class="switch"><input type="checkbox" role="switch" aria-label="Activer ${esc(p.label)}" data-c="payToggle" data-id="${p.id}" ${p.on?'checked':''}></span></div>${p.kind==='manual'?payDetailsForm(p):''}`).join('')}
  <form data-form="payAdd" style="margin-top:14px"><h3>Ajouter un moyen de paiement mobile</h3><div class="row"><div class="field"><label for="p-l">Nom</label><input class="input" id="p-l" name="label" placeholder="Ex. Wave" required></div><div class="field" style="align-self:end"><button class="btn" type="submit">Ajouter</button></div></div></form>
  <p class="hint">La connexion à l'agrégateur (CinetPay, PayDunya, SEMOA) se configure lors de la mise en production.</p></div>`:'';
  const data=ad&&!BACKEND?`<div class="panel"><h2>Données de démonstration</h2><p class="muted" style="margin-bottom:12px">Remet les commandes, plats, stocks et comptes à leur état initial.</p><button class="btn danger" data-a="resetDemo">Réinitialiser les données</button></div>`:'';
- return adminShell('parametres','Paramètres',`<div class="cols"><div>${idn}${contact}${hrs}</div><div>${look}${pay}${notif}${legal}${data}</div></div>`);
+ return adminShell('parametres','Paramètres',`<div class="cols"><div>${idn}${contact}${hrs}</div><div>${look}${pay}${notif}${wa}${legal}${data}</div></div>`);
 }
 
 /* ====================== profil, FAQ, activité ====================== */
@@ -964,6 +980,19 @@ function render(){
  keepAwake();
  const path=r.p.join('/');if(path!==lastPath){window.scrollTo(0,0);lastPath=path}
 }
+async function notifyWhatsApp(order){
+  try{
+    const list=(S.settings.whatsapp||[]).filter(c=>c&&c.phone&&c.key&&c.on!==false);
+    if(!list.length)return;
+    const items=(order.items||[]).map(i=>`${i.qty}× ${i.name}`).join(', ');
+    const msg=`🍽️ Nouvelle commande ${order.num||''}\n${order.name||''} · ${fmtPhone(order.phone)||order.phone||''}\nRetrait ${order.pickupDate||''} à ${hmc(String(order.pickupTime||'').slice(0,5))}\n${items}\nTotal : ${money(order.due!=null?order.due:order.subtotal||0)}\n${order.methodLabel||order.method||''}`;
+    await Promise.allSettled(list.map(c=>{
+      const phone=String(c.phone).replace(/\D/g,'');
+      const url=`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(c.key)}`;
+      return fetch(url,{mode:'no-cors'}).catch(()=>{});
+    }));
+  }catch(e){}
+}
 function notifyNew(n){
  try{
   if(!document.hidden||!('Notification' in window)||Notification.permission!=='granted')return;
@@ -1009,8 +1038,21 @@ const ACT={
  installOff(){ls.set('cantine-install-off',String(Date.now()));render()},
  modalClose(){closeModal()},
  confirmOk(){const cb=confirmCb;confirmCb=null;closeModal();if(cb)cb()},
- add(el){addToCart(el.dataset.id);cartChange();toast('Ajouté au panier','ok');if(el.dataset.close)closeModal()},
- inc(el){addToCart(el.dataset.id);cartChange()},
+ waDel(el){
+  if(!need(isAdmin()))return;const i=+el.dataset.i,list=S.settings.whatsapp||[];
+  const c=list[i];if(!c)return;
+  askConfirm('Retirer l\'alerte WhatsApp de '+c.name+' ?','Retirer',()=>{
+   S.settings.whatsapp=list.filter((_,j)=>j!==i);if(!S.settings.legal)S.settings.legal={};S.settings.legal.whatsapp=S.settings.whatsapp;
+   logAct('A retiré l\'alerte WhatsApp de '+c.name);save();render();toast('Numéro retiré','ok');
+  },true);
+ },
+ add(el){
+  addToCart(el.dataset.id);cartChange();soundAdd();
+  el.classList.add('just-added');setTimeout(()=>el.classList.remove('just-added'),450);
+  const card=el.closest('.dcard,.mrow,li');if(card){card.classList.add('just-added');setTimeout(()=>card.classList.remove('just-added'),450)}
+  toast('Ajouté au panier ✓','ok');if(el.dataset.close)closeModal()
+ },
+ inc(el){addToCart(el.dataset.id);cartChange();soundAdd();el.classList.add('just-added');setTimeout(()=>el.classList.remove('just-added'),400)},
  dec(el){const i=cart.items.find(x=>x.id===el.dataset.id);if(!i)return;i.qty--;if(i.qty<=0)cart.items=cart.items.filter(x=>x!==i);cartChange()},
  cartOpen(){drawerIsOpen=true;$('#drawer').innerHTML=drawerHtml();const b=$('#drawer .x');if(b)b.focus()},
  cartClose(){drawerIsOpen=false;$('#drawer').innerHTML=''},
@@ -1076,6 +1118,11 @@ const CHG={
  orange(el){oUi.range=el.value;render()},
  dishActive(el){if(!need(can('menus'))){el.checked=!el.checked;return}const d=dish(el.dataset.id);d.active=el.checked;logAct((d.active?'A activé':'A désactivé')+' le plat « '+d.name+' »');save();render()},
  notifyEmail(el){if(!need(isAdmin())){el.checked=!el.checked;return}S.settings.notifyEmail=el.checked;logAct((el.checked?'A activé':'A désactivé')+' les e-mails aux clients');save();render()},
+ waToggle(el){
+  if(!need(isAdmin())){el.checked=!el.checked;return}
+  const i=+el.dataset.i,list=S.settings.whatsapp||[];if(!list[i])return;
+  list[i].on=el.checked;if(!S.settings.legal)S.settings.legal={};S.settings.legal.whatsapp=list;save();render();
+ },
  payToggle(el){if(!need(isAdmin())){el.checked=!el.checked;return}const p=payById(el.dataset.id);p.on=el.checked;logAct((p.on?'A activé':'A désactivé')+' le paiement '+p.label);save();render()},
  async photo(el){const f=el.files[0];if(!f)return;try{tmpPhoto=await readImage(f);const p=$('#photoPrev');if(p)p.innerHTML=`<img src="${tmpPhoto}" alt="Aperçu">`}catch(e){toast('Image illisible, essayez un autre fichier.','bad')}},
  async photoUser(el){const f=el.files[0];if(!f)return;try{tmpPhoto=await readImage(f,256);const p=$('#photoPrev');if(p){const w=p.style.width||'56px';p.outerHTML=`<img id="photoPrev" class="av" style="width:${w};height:${w}" src="${tmpPhoto}" alt="Aperçu">`}}catch(e){toast('Image illisible, essayez un autre fichier.','bad')}},
@@ -1120,7 +1167,8 @@ const FORMS={
    payStatus:due===0?'payé':pm.kind==='cash'?'à payer':'payé',status:'new',clientId:c2?c2.id:null,note:String(fd.get('note')||'').trim(),history:[{s:'new',at:now,by:'Client'}]};
   if(credit>0&&c2)addCredit(c2,-credit,'Commande '+num,'Client');
   S.orders.push(o);save();cart.items=[];saveCart();ui.draft={};remember(num);
-  location.hash='#/suivi/'+num;render();toast('Commande envoyée. Merci !','ok');
+  location.hash='#/suivi/'+num;render();soundOk();confetti();toast('Commande envoyée. Merci !','ok');
+  notifyWhatsApp(o);
  },
  lookup(f){
   const fd=new FormData(f),num=String(fd.get('num')||'').trim().toUpperCase(),ph=normPhone(fd.get('phone'));
@@ -1197,7 +1245,7 @@ const FORMS={
   if(tmpPhoto!==undefined)u.photo=tmpPhoto;
   logAct((nw?'A créé':'A modifié')+' le compte de '+name);save();closeModal();render();toast('Compte enregistré','ok');
  },
- legal(f){if(!need(isAdmin()))return;const fd=new FormData(f),g=k=>String(fd.get(k)||'').trim(),r=g('retention');S.settings.legal={company:g('company'),form:g('form'),nif:g('nif'),rccm:g('rccm'),director:g('director'),host:g('host'),contact:g('contact'),retention:r?Math.max(1,Math.round(+r)):''};logAct('A modifié les informations légales');save();render();toast('Informations légales enregistrées','ok')},
+ legal(f){if(!need(isAdmin()))return;const fd=new FormData(f),g=k=>String(fd.get(k)||'').trim(),r=g('retention');S.settings.legal={company:g('company'),form:g('form'),nif:g('nif'),rccm:g('rccm'),director:g('director'),host:g('host'),contact:g('contact'),retention:r?Math.max(1,Math.round(+r)):'',whatsapp:S.settings.whatsapp||[]};logAct('A modifié les informations légales');save();render();toast('Informations légales enregistrées','ok')},
  identity(f){if(!need(isAdmin()))return;const fd=new FormData(f);S.settings.name=String(fd.get('name')).trim()||S.settings.name;S.settings.tagline=String(fd.get('tagline')||'').trim();logAct('A modifié l\'identité de la cantine');save();render();toast('Identité enregistrée','ok')},
  contact(f){if(!need(isAdmin()||staff().role==='gerant'))return;const fd=new FormData(f);Object.assign(S.settings,{address:String(fd.get('address')).trim(),phone:String(fd.get('phone')).trim(),email:String(fd.get('email')||'').trim()});logAct('A modifié les coordonnées');save();render();toast('Coordonnées enregistrées','ok')},
  hours(f){
@@ -1206,6 +1254,15 @@ const FORMS={
   S.settings.hours=h;S.settings.prepMin=Math.max(5,+fd.get('prep')||20);S.settings.slot=+fd.get('slot')||15;S.settings.slotCap=Math.max(0,Math.min(200,Math.round(+fd.get('cap')||0)));logAct('A modifié les horaires');save();render();toast('Horaires enregistrés','ok');
  },
  payAdd(f){if(!need(isAdmin()))return;const l=String(new FormData(f).get('label')||'').trim();if(!l)return;S.settings.payments.push({id:'p'+uid(),label:l,kind:'momo',on:true,hint:'Paiement mobile'});logAct('A ajouté le moyen de paiement '+l);save();render()},
+ waAdd(f){
+  if(!need(isAdmin()))return;
+  const fd=new FormData(f),name=String(fd.get('name')||'').trim(),phone=String(fd.get('phone')||'').replace(/\D/g,''),key=String(fd.get('key')||'').trim();
+  if(!name||phone.length<8||!key)return toast('Indiquez un nom, un numéro international et la clé CallMeBot.','bad');
+  if(!S.settings.whatsapp)S.settings.whatsapp=[];
+  S.settings.whatsapp.push({name,phone,key,on:true});
+  if(!S.settings.legal)S.settings.legal={};S.settings.legal.whatsapp=S.settings.whatsapp;
+  logAct('A ajouté l\'alerte WhatsApp pour '+name);save();render();toast('Numéro WhatsApp ajouté','ok');
+ },
  profile(f){
   const u=staff(),fd=new FormData(f),name=String(fd.get('name')||'').trim(),code=String(fd.get('code')||'');
   if(!name)return;if(code&&code.length<6){toast('Le code doit contenir au moins 6 caractères.','bad');return}
@@ -1223,7 +1280,46 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(modalOpen()&&!$(
 let audioCtx=null;
 function unlockAudio(){try{const A=window.AudioContext||window.webkitAudioContext;if(!audioCtx&&A)audioCtx=new A();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume()}catch(e){}}
 document.addEventListener('click',unlockAudio);document.addEventListener('touchstart',unlockAudio,{passive:true});
-function beep(){try{unlockAudio();const c=audioCtx;if(!c||c.state!=='running')return;const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(c.currentTime+.25)}catch(e){}}
+function tone(freq,start,dur,type,vol){
+ try{unlockAudio();const c=audioCtx;if(!c||c.state!=='running')return;
+  const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=freq;
+  g.gain.setValueAtTime(0,c.currentTime+start);g.gain.linearRampToValueAtTime(vol||.09,c.currentTime+start+.02);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+start+dur);o.connect(g);g.connect(c.destination);
+  o.start(c.currentTime+start);o.stop(c.currentTime+start+dur+.02)}catch(e){}
+}
+function beep(){tone(880,0,.22,'sine',.1);tone(1174,0.12,.18,'sine',.07)}
+function soundOk(){tone(523,0,.12,'sine',.08);tone(659,.1,.12,'sine',.09);tone(784,.2,.28,'triangle',.1)}
+function soundAdd(){tone(660,0,.08,'sine',.06);tone(880,.06,.1,'sine',.05)}
+function soundWarn(){tone(320,0,.15,'square',.05);tone(280,.12,.2,'square',.04)}
+function confetti(opts={}){
+ const n=opts.n||90,colors=opts.colors||['#F28C1B','#3A7650','#E9A92B','#C2255C','#1C7ED6','#fff','#F4E9C8'];
+ const c=document.createElement('canvas');c.setAttribute('aria-hidden','true');
+ Object.assign(c.style,{position:'fixed',inset:'0',width:'100%',height:'100%',pointerEvents:'none',zIndex:'400'});
+ document.body.appendChild(c);const ctx=c.getContext('2d');
+ const dpr=Math.min(window.devicePixelRatio||1,2);let W,H;
+ const resize=()=>{W=window.innerWidth;H=window.innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)};
+ resize();
+ const parts=Array.from({length:n},()=>({
+  x:W*.3+Math.random()*W*.4,y:H*.15+Math.random()*H*.15,
+  vx:(Math.random()-.5)*9,vy:-(6+Math.random()*10),g:.22+Math.random()*.18,
+  w:6+Math.random()*8,h:8+Math.random()*10,rot:Math.random()*Math.PI,rv:(Math.random()-.5)*.25,
+  color:colors[Math.floor(Math.random()*colors.length)],life:1,shape:Math.random()>.4?'rect':'circle'
+ }));
+ let start=performance.now();
+ function frame(t){
+  const dt=Math.min(32,(t-start))/16;start=t;ctx.clearRect(0,0,W,H);let alive=false;
+  for(const p of parts){
+   if(p.life<=0)continue;alive=true;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.rv*dt;p.life-=.008*dt;p.vx*=.995;
+   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;
+   if(p.shape==='circle'){ctx.beginPath();ctx.arc(0,0,p.w*.5,0,Math.PI*2);ctx.fill()}
+   else{ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h)}
+   ctx.restore();
+  }
+  if(alive)requestAnimationFrame(frame);else c.remove();
+ }
+ requestAnimationFrame(frame);
+ setTimeout(()=>{try{c.remove()}catch(e){}},4500);
+}
 /* écran de cuisine : empêche la mise en veille tant que l'espace équipe est ouvert */
 let wakeLock=null;
 async function keepAwake(){try{if(staff()&&'wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}}catch(e){}}
@@ -1232,7 +1328,7 @@ window.addEventListener('storage',e=>{
  if(e.key===KEY&&e.newValue){
   const before=S.orders.length;let n;try{n=JSON.parse(e.newValue)}catch(x){return}
   S=n;const added=S.orders.length-before;
-  if(added>0&&staff()){toast(added>1?added+' nouvelles commandes':'Nouvelle commande reçue','ok');beep();notifyNew(added)}
+  if(added>0&&staff()){toast(added>1?added+' nouvelles commandes':'Nouvelle commande reçue','ok');beep();notifyNew(added);S.orders.slice(-added).forEach(o=>notifyWhatsApp(o))}
   if(!modalOpen()&&!isTyping())render();
  }
  if(e.key==='cantine-cart'){try{const c=JSON.parse(e.newValue||'{"items":[]}');if(c&&Array.isArray(c.items))cart=c;refreshDrawer()}catch(x){}}
